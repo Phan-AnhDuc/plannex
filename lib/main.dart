@@ -1,9 +1,9 @@
-
 import 'package:flutter/material.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import 'app/data/app_shared_pref.dart';
 import 'app/routes/app_pages.dart';
@@ -31,7 +31,11 @@ void configLoading() {
 Future<void> main() async {
   // wait for bindings
   WidgetsFlutterBinding.ensureInitialized();
-    // init shared preference
+  
+  // Initialize Firebase
+  await Firebase.initializeApp();
+  
+  // init shared preference
   await AppSharedPref.init();
 
   runApp(
@@ -46,7 +50,7 @@ Future<void> main() async {
         return GestureDetector(
           onTap: () => FocusScope.of(context).requestFocus(FocusNode()),
           child:  GetMaterialApp(
-              title: "App Base",
+              title: 'Plannex',
               useInheritedMediaQuery: true,
               debugShowCheckedModeBanner: false,
               supportedLocales: const [Locale('vi', 'VI')],

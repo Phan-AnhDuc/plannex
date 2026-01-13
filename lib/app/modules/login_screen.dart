@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_easyloading/flutter_easyloading.dart';
+import 'package:get/get.dart';
 
 // Components
 import '../components/app_text.dart';
+// Services
+import '../services/firebase_auth_service.dart';
+// Pages
+import 'home_page.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -12,6 +18,9 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  // Auth service
+  final FirebaseAuthService _authService = FirebaseAuthService();
+
   // State
   bool _isSignIn = true;
 
@@ -54,7 +63,8 @@ class _LoginScreenState extends State<LoginScreen> {
         child: Column(
           children: [
             // Back button
-            _buildHeader(),
+            // _buildHeader(),
+            SizedBox(height: 40.h),
 
             // Content
             Expanded(
@@ -99,6 +109,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     // Forgot password (Sign in only)
                     if (_isSignIn) _buildForgotPassword(),
+
+                    SizedBox(height: 16.h),
+
+                    // Anonymous sign in
+                    _buildAnonymousButton(),
                   ],
                 ),
               ),
@@ -144,7 +159,7 @@ class _LoginScreenState extends State<LoginScreen> {
         _isSignIn ? 'Welcome back' : 'Create your account',
         textType: AppTextType.custom,
         fontSize: 22,
-        fontWeight: FontWeight.bold,
+        fontWeight: FontWeight.w500,
         color: _isSignIn ? _textDark : _textDarkSignUp,
         textAlign: TextAlign.center,
         letterSpacing: -0.015,
@@ -172,9 +187,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Container(
                   height: double.infinity,
                   decoration: BoxDecoration(
-                    color: _isSignIn
-                        ? (_isSignIn ? _bgColorSignIn : _bgColorSignUp)
-                        : Colors.transparent,
+                    color: _isSignIn ? (_isSignIn ? _bgColorSignIn : _bgColorSignUp) : Colors.transparent,
                     borderRadius: BorderRadius.circular(999.r),
                     boxShadow: _isSignIn
                         ? [
@@ -190,9 +203,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     'Sign in',
                     textType: AppTextType.s14w4,
                     fontWeight: FontWeight.w500,
-                    color: _isSignIn
-                        ? (_isSignIn ? _textDark : _textDarkSignUp)
-                        : (_isSignIn ? _textMedium : _textMediumSignUp),
+                    color: _isSignIn ? (_isSignIn ? _textDark : _textDarkSignUp) : (_isSignIn ? _textMedium : _textMediumSignUp),
                   ),
                 ),
               ),
@@ -205,9 +216,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Container(
                   height: double.infinity,
                   decoration: BoxDecoration(
-                    color: !_isSignIn
-                        ? (_isSignIn ? _bgColorSignIn : _bgColorSignUp)
-                        : Colors.transparent,
+                    color: !_isSignIn ? (_isSignIn ? _bgColorSignIn : _bgColorSignUp) : Colors.transparent,
                     borderRadius: BorderRadius.circular(999.r),
                     boxShadow: !_isSignIn
                         ? [
@@ -223,9 +232,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     'Sign up',
                     textType: AppTextType.s14w4,
                     fontWeight: FontWeight.w500,
-                    color: !_isSignIn
-                        ? (_isSignIn ? _textDark : _textDarkSignUp)
-                        : (_isSignIn ? _textMedium : _textMediumSignUp),
+                    color: !_isSignIn ? (_isSignIn ? _textDark : _textDarkSignUp) : (_isSignIn ? _textMedium : _textMediumSignUp),
                   ),
                 ),
               ),
@@ -297,7 +304,7 @@ class _LoginScreenState extends State<LoginScreen> {
             AppText(
               text,
               textType: AppTextType.s16w4,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w500,
               color: _isSignIn ? _textDark : _textDarkSignUp,
             ),
           ],
@@ -331,25 +338,23 @@ class _LoginScreenState extends State<LoginScreen> {
           Container(
             height: 56.h,
             decoration: BoxDecoration(
-              color: hasError
-                  ? (_isSignIn ? _bgColorSignIn : _bgColorSignUp)
-                  : (_isSignIn ? _inputBg : _inputBgSignUp),
+              color: hasError ? (_isSignIn ? _bgColorSignIn : _bgColorSignUp) : (_isSignIn ? _inputBg : _inputBgSignUp),
               borderRadius: BorderRadius.circular(12.r),
-              border: hasError
-                  ? Border.all(color: _borderColor, width: 1)
-                  : null,
+              border: hasError ? Border.all(color: _borderColor, width: 1) : null,
             ),
             child: TextField(
               controller: _emailController,
               keyboardType: TextInputType.emailAddress,
               style: TextStyle(
                 fontSize: 16.sp,
+                fontWeight: FontWeight.w500,
                 color: _isSignIn ? _textDark : _textDarkSignUp,
               ),
               decoration: InputDecoration(
-                hintText: hasError ? 'invalid-email' : 'Email',
+                hintText: 'Email',
                 hintStyle: TextStyle(
                   fontSize: 16.sp,
+                  fontWeight: FontWeight.w500,
                   color: _isSignIn ? _textMedium : _textMediumSignUp,
                 ),
                 border: InputBorder.none,
@@ -366,7 +371,7 @@ class _LoginScreenState extends State<LoginScreen> {
             AppText(
               _emailError!,
               textType: AppTextType.s14w4,
-              color: _isSignIn ? _textMedium : _textMediumSignUp,
+              color: const Color(0xFFEF4444),
             ),
           ],
         ],
@@ -392,12 +397,14 @@ class _LoginScreenState extends State<LoginScreen> {
               obscureText: true,
               style: TextStyle(
                 fontSize: 16.sp,
+                fontWeight: FontWeight.w500,
                 color: _isSignIn ? _textDark : _textDarkSignUp,
               ),
               decoration: InputDecoration(
                 hintText: 'Password',
                 hintStyle: TextStyle(
                   fontSize: 16.sp,
+                  fontWeight: FontWeight.w500,
                   color: _isSignIn ? _textMedium : _textMediumSignUp,
                 ),
                 border: InputBorder.none,
@@ -414,7 +421,7 @@ class _LoginScreenState extends State<LoginScreen> {
             AppText(
               _passwordError!,
               textType: AppTextType.s14w4,
-              color: _isSignIn ? _textMedium : _textMediumSignUp,
+              color: const Color(0xFFEF4444),
             ),
           ],
         ],
@@ -434,25 +441,23 @@ class _LoginScreenState extends State<LoginScreen> {
           Container(
             height: 56.h,
             decoration: BoxDecoration(
-              color: hasError
-                  ? _bgColorSignUp
-                  : _inputBgSignUp,
+              color: hasError ? _bgColorSignUp : _inputBgSignUp,
               borderRadius: BorderRadius.circular(12.r),
-              border: hasError
-                  ? Border.all(color: _borderColor, width: 1)
-                  : null,
+              border: hasError ? Border.all(color: _borderColor, width: 1) : null,
             ),
             child: TextField(
               controller: _confirmPasswordController,
               obscureText: true,
               style: TextStyle(
                 fontSize: 16.sp,
+                fontWeight: FontWeight.w500,
                 color: _textDarkSignUp,
               ),
               decoration: InputDecoration(
                 hintText: 'Confirm password',
                 hintStyle: TextStyle(
                   fontSize: 16.sp,
+                  fontWeight: FontWeight.w500,
                   color: _textMediumSignUp,
                 ),
                 border: InputBorder.none,
@@ -469,7 +474,7 @@ class _LoginScreenState extends State<LoginScreen> {
             AppText(
               _confirmPasswordError!,
               textType: AppTextType.s14w4,
-              color: _textMediumSignUp,
+              color: const Color(0xFFEF4444),
             ),
           ],
         ],
@@ -497,7 +502,7 @@ class _LoginScreenState extends State<LoginScreen> {
           child: AppText(
             _isSignIn ? 'Sign in with email' : 'Sign up with email',
             textType: AppTextType.s16w4,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w500,
             color: _isSignIn ? _textDark : _textDarkSignUp,
           ),
         ),
@@ -522,6 +527,36 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  /// Anonymous sign in button
+  Widget _buildAnonymousButton() {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 16.w),
+      child: GestureDetector(
+        onTap: _onAnonymousSignIn,
+        child: Container(
+          padding: EdgeInsets.symmetric(vertical: 12.h),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.person_outline,
+                size: 20.sp,
+                color: _isSignIn ? _textMedium : _textMediumSignUp,
+              ),
+              SizedBox(width: 8.w),
+              AppText(
+                'Continue without account',
+                textType: AppTextType.s14w4,
+                fontWeight: FontWeight.w500,
+                color: _isSignIn ? _textMedium : _textMediumSignUp,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   /// Bottom link (switch between sign in/up)
   Widget _buildBottomLink() {
     return Padding(
@@ -529,9 +564,7 @@ class _LoginScreenState extends State<LoginScreen> {
       child: GestureDetector(
         onTap: () => setState(() => _isSignIn = !_isSignIn),
         child: AppText(
-          _isSignIn
-              ? "Don't have an account? Create one"
-              : 'Already have an account? Sign in',
+          _isSignIn ? "Don't have an account? Create one" : 'Already have an account? Sign in',
           textType: AppTextType.s14w4,
           color: _isSignIn ? _textMedium : _textMediumSignUp,
           textAlign: TextAlign.center,
@@ -541,7 +574,8 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // Validation methods
+  // ============ Validation methods ============
+
   void _validateEmail() {
     final email = _emailController.text;
     if (email.isNotEmpty && !_isValidEmail(email)) {
@@ -574,29 +608,140 @@ class _LoginScreenState extends State<LoginScreen> {
     return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
   }
 
-  // Action methods
+  bool _validateForm() {
+    _validateEmail();
+    _validatePassword();
+    if (!_isSignIn) {
+      _validateConfirmPassword();
+    }
+
+    if (_emailController.text.isEmpty) {
+      setState(() => _emailError = 'Email is required');
+      return false;
+    }
+
+    if (_passwordController.text.isEmpty) {
+      setState(() => _passwordError = 'Password is required');
+      return false;
+    }
+
+    return _emailError == null && _passwordError == null && (_isSignIn || _confirmPasswordError == null);
+  }
+
+  // ============ Action methods ============
+
   void _onBack() {
     Navigator.of(context).pop();
   }
 
-  void _onGoogleSignIn() {
-    debugPrint('Google Sign In');
-  }
+  Future<void> _onGoogleSignIn() async {
+    EasyLoading.show(status: 'Signing in...');
 
-  void _onAppleSignIn() {
-    debugPrint('Apple Sign In');
-  }
+    final result = await _authService.signInWithGoogle();
 
-  void _onSubmit() {
-    if (_isSignIn) {
-      debugPrint('Sign In with email');
+    EasyLoading.dismiss();
+
+    if (result.isSuccess) {
+      _showSuccess('Signed in successfully!');
+      _navigateToHome();
     } else {
-      debugPrint('Sign Up with email');
+      _showError(result.errorMessage ?? 'Failed to sign in with Google');
     }
   }
 
-  void _onForgotPassword() {
-    debugPrint('Forgot password');
+  Future<void> _onAppleSignIn() async {
+    // Apple Sign In requires additional setup
+    _showError('Apple Sign In is not configured yet');
+  }
+
+  Future<void> _onSubmit() async {
+    if (!_validateForm()) return;
+
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    EasyLoading.show(status: _isSignIn ? 'Signing in...' : 'Creating account...');
+
+    AuthResult result;
+    if (_isSignIn) {
+      result = await _authService.signInWithEmail(email, password);
+    } else {
+      result = await _authService.signUpWithEmail(email, password);
+    }
+
+    EasyLoading.dismiss();
+
+    if (result.isSuccess) {
+      _showSuccess(_isSignIn ? 'Signed in successfully!' : 'Account created successfully!');
+      _navigateToHome();
+    } else {
+      _showError(result.errorMessage ?? 'An error occurred');
+    }
+  }
+
+  Future<void> _onForgotPassword() async {
+    final email = _emailController.text.trim();
+
+    if (email.isEmpty || !_isValidEmail(email)) {
+      _showError('Please enter a valid email address');
+      return;
+    }
+
+    EasyLoading.show(status: 'Sending reset email...');
+
+    final result = await _authService.sendPasswordResetEmail(email);
+
+    EasyLoading.dismiss();
+
+    if (result.isSuccess) {
+      _showSuccess('Password reset email sent!');
+    } else {
+      _showError(result.errorMessage ?? 'Failed to send reset email');
+    }
+  }
+
+  Future<void> _onAnonymousSignIn() async {
+    EasyLoading.show(status: 'Continuing...');
+
+    final result = await _authService.signInAnonymously();
+
+    EasyLoading.dismiss();
+
+    if (result.isSuccess) {
+      _showSuccess('Welcome!');
+      _navigateToHome();
+    } else {
+      _showError(result.errorMessage ?? 'Failed to continue');
+    }
+  }
+
+  void _navigateToHome() {
+    Get.offAll(() => const HomePage());
+  }
+
+  void _showSuccess(String message) {
+    Get.snackbar(
+      'Success',
+      message,
+      snackPosition: SnackPosition.TOP,
+      backgroundColor: const Color(0xFF10B981),
+      colorText: Colors.white,
+      duration: const Duration(seconds: 2),
+      margin: EdgeInsets.all(16.w),
+      borderRadius: 12.r,
+    );
+  }
+
+  void _showError(String message) {
+    Get.snackbar(
+      'Error',
+      message,
+      snackPosition: SnackPosition.TOP,
+      backgroundColor: const Color(0xFFEF4444),
+      colorText: Colors.white,
+      duration: const Duration(seconds: 3),
+      margin: EdgeInsets.all(16.w),
+      borderRadius: 12.r,
+    );
   }
 }
-

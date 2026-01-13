@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import '../../../routes/app_pages.dart';
 import '../../home_page.dart';
 import '../../home_today.dart';
+import '../../login_screen.dart';
 import '../controllers/home_controller.dart';
 
 var styleText = TextStyle(
@@ -44,7 +45,7 @@ class HomeView extends GetView<HomeController> {
             ElevatedButton(
                 onPressed: () {
                   // controller.changeTheme();
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => HomePage()));
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => LoginScreen()));
                 },
                 child: const Text('Change Theme')),
             ElevatedButton(

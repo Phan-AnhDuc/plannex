@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "746246688718",
+    "project_id": "plannex-483414",
+    "storage_bucket": "plannex-483414.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:746246688718:android:b6757fcd1a98d50a7ca59f",
+        "android_client_info": {
+          "package_name": "com.plannex.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "746246688718-flou98u6uqoffa59l3jj0he0mcjq0beb.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.plannex.app",
+            "certificate_hash": "9c1c72d703a9cc9a7ab5c1c4ed324271355241e7"
+          }
+        },
+        {
+          "client_id": "746246688718-jju7s2b778jf5mto1objuqll804087ig.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCWSpG0ft6t_e8Fpcx6f6ang-dJgqtQQQo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "746246688718-jju7s2b778jf5mto1objuqll804087ig.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "746246688718-82gj7bbnvcm9boutibo8dfbpe2i6q272.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.plannex.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
