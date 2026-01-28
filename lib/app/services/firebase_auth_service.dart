@@ -3,6 +3,8 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import '../data/app_shared_pref.dart';
+
 class FirebaseAuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn(
@@ -127,7 +129,25 @@ class FirebaseAuthService {
         debugPrint(
           '===== 10. Đăng nhập Firebase thành công: ${userCredential.user?.displayName} =====',
         );
-        return AuthResult.success(userCredential.user);
+        
+        // Kiểm tra user không null trước khi lấy token
+        final user = userCredential.user;
+        if (user == null) {
+          debugPrint('===== ERROR: userCredential.user is null =====');
+          return AuthResult.error('Đăng nhập Firebase thất bại: User is null');
+        }
+
+        // Lấy ID Token
+        final idToken = await user.getIdToken();
+        if (idToken == null || idToken.isEmpty) {
+          debugPrint('===== ERROR: idToken is null or empty =====');
+          return AuthResult.error('Đăng nhập Firebase thất bại: Không thể lấy ID Token');
+        }
+        
+        debugPrint('========idToken==========$idToken');
+        await AppSharedPref.setToken(idToken);
+
+        return AuthResult.success(user);
       } catch (credentialError) {
         debugPrint(
           '===== ERROR: Lỗi khi đăng nhập với credential: $credentialError =====',
@@ -197,8 +217,7 @@ class FirebaseAuthService {
         email: email,
         password: password,
       );
-      final userCredential =
-          await _auth.currentUser?.linkWithCredential(credential);
+      final userCredential = await _auth.currentUser?.linkWithCredential(credential);
       return AuthResult.success(userCredential?.user);
     } on FirebaseAuthException catch (e) {
       return AuthResult.error(_getErrorMessage(e.code));
@@ -216,16 +235,14 @@ class FirebaseAuthService {
         return AuthResult.error('Google sign in cancelled');
       }
 
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
 
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      final userCredential =
-          await _auth.currentUser?.linkWithCredential(credential);
+      final userCredential = await _auth.currentUser?.linkWithCredential(credential);
       return AuthResult.success(userCredential?.user);
     } on FirebaseAuthException catch (e) {
       return AuthResult.error(_getErrorMessage(e.code));

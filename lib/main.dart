@@ -6,7 +6,8 @@ import 'package:get/get.dart';
 import 'package:firebase_core/firebase_core.dart';
 
 import 'app/data/app_shared_pref.dart';
-import 'app/routes/app_pages.dart';
+import 'app/modules/home_page.dart';
+import 'app/modules/login_screen.dart';
 import 'theme/app_theme.dart';
 import 'translations/localization_service.dart';
 
@@ -37,6 +38,9 @@ Future<void> main() async {
   
   // init shared preference
   await AppSharedPref.init();
+
+  final hasToken =
+      AppSharedPref.getToken() != null && AppSharedPref.getToken()!.isNotEmpty;
 
   runApp(
     ScreenUtilInit(
@@ -82,8 +86,7 @@ Future<void> main() async {
                 widget = EasyLoading.init()(context, widget);
                 return widget;
               },
-              initialRoute: AppPages.INITIAL,
-              getPages: AppPages.routes,
+              home: hasToken ? const HomePage() : const LoginScreen(),
               locale: const Locale('vi', 'VI'),
               translations: LocalizationService.getInstance(),
             ),

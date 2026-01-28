@@ -21,9 +21,13 @@ class AppSharedPref {
   static const String _missionType = 'mission_type';
   static const String _jobType = 'job_type';
   static const String _eventType = 'event_type';
-  static const String _disableDueToWarningMission =
-      'disable_due_to_warning_mission';
+  static const String _disableDueToWarningMission = 'disable_due_to_warning_mission';
   static const String _username = 'username';
+
+  // Auth & intro keys (migrated from PrefUtils)
+  static const String _tokenKey = 'token';
+  static const String _refreshTokenKey = 'refreshToken';
+  static const String _introKey = 'intro';
 
   /// init get storage services
   static Future<void> init() async {
@@ -121,26 +125,32 @@ class AppSharedPref {
 
   /// clear all data from shared pref
   static Future<void> clear() async {
-    final missionType = getMissionType();
-    final jobType = getJobType();
-    final eventType = getEventType();
-    final username = getUsername();
-
-    // Clear all settings
     await _sharedPreferences.clear();
+  }
 
-    // Keep the following settings for later use
-    if (missionType != null) {
-      setMissionType(missionType);
-    }
-    if (jobType != null) {
-      setJobType(jobType);
-    }
-    if (eventType != null) {
-      setEventType(eventType);
-    }
-    if (username != null) {
-      setUsername(username);
-    }
+  // ===== Auth & intro helpers =====
+
+  static Future<void> setToken(String token) async {
+    await _sharedPreferences.setString(_tokenKey, token);
+  }
+
+  static String? getToken() {
+    return _sharedPreferences.getString(_tokenKey);
+  }
+
+  static Future<void> setRefreshToken(String token) async {
+    await _sharedPreferences.setString(_refreshTokenKey, token);
+  }
+
+  static String? getRefreshToken() {
+    return _sharedPreferences.getString(_refreshTokenKey);
+  }
+
+  static Future<void> setIntroSeen(bool isSeen) async {
+    await _sharedPreferences.setBool(_introKey, isSeen);
+  }
+
+  static bool getIntroSeen() {
+    return _sharedPreferences.getBool(_introKey) ?? false;
   }
 }

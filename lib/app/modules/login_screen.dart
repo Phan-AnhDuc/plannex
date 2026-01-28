@@ -127,30 +127,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  /// Header with back button
-  Widget _buildHeader() {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: _onBack,
-            child: Container(
-              width: 48.w,
-              height: 48.h,
-              alignment: Alignment.center,
-              child: Icon(
-                Icons.arrow_back_ios_new,
-                size: 24.sp,
-                color: _isSignIn ? _textDark : _textDarkSignUp,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   /// Title
   Widget _buildTitle() {
     return Padding(
@@ -630,10 +606,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // ============ Action methods ============
 
-  void _onBack() {
-    Navigator.of(context).pop();
-  }
-
   Future<void> _onGoogleSignIn() async {
     EasyLoading.show(status: 'Signing in...');
 
@@ -641,7 +613,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
     EasyLoading.dismiss();
 
-    if (result.isSuccess) {
+    if (result.isSuccess && result.user != null) {
+      // await _saveTokens(result.user!);
       _showSuccess('Signed in successfully!');
       _navigateToHome();
     } else {
@@ -671,7 +644,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
     EasyLoading.dismiss();
 
-    if (result.isSuccess) {
+    if (result.isSuccess && result.user != null) {
+      // await _saveTokens(result.user!);
       _showSuccess(_isSignIn ? 'Signed in successfully!' : 'Account created successfully!');
       _navigateToHome();
     } else {
@@ -707,7 +681,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
     EasyLoading.dismiss();
 
-    if (result.isSuccess) {
+    if (result.isSuccess && result.user != null) {
+      // await _saveTokens(result.user!);
       _showSuccess('Welcome!');
       _navigateToHome();
     } else {
@@ -744,4 +719,21 @@ class _LoginScreenState extends State<LoginScreen> {
       borderRadius: 12.r,
     );
   }
+
+  // Future<void> _saveTokens(dynamic user) async {
+  //   try {
+  //     final idToken = await user.getIdToken();
+  //     print('========idToken==========$idToken');
+  //     if (idToken != null && idToken.isNotEmpty) {
+  //       await PrefUtils.setToken(idToken);
+  //       print('ID Token saved successfully');
+  //     }
+  //     if (idToken != null && idToken.isNotEmpty) {
+  //       await PrefUtils.setRefreshToken(idToken);
+  //       print('Refresh Token reference saved (using idToken as reference)');
+  //     }
+  //   } catch (e) {
+  //     print('Error saving tokens: $e');
+  //   }
+  // }
 }

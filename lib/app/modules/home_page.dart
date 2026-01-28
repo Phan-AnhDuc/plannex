@@ -17,6 +17,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   late int _currentIndex;
+  final GlobalKey<HomeTodayScreenState> _homeTodayKey = GlobalKey<HomeTodayScreenState>();
 
   @override
   void initState() {
@@ -26,7 +27,7 @@ class _HomePageState extends State<HomePage> {
 
   // Pages for bottom navigation
   List<Widget> get _pages => [
-    HomeTodayScreen(onTabChanged: _onTabChanged),
+    HomeTodayScreen(key: _homeTodayKey, onTabChanged: _onTabChanged),
     ScheduleScreen(onTabChanged: _onTabChanged),
     _PlaceholderScreen(title: 'AI Planner', onTabChanged: _onTabChanged, currentIndex: 2),
     SettingScreen(onTabChanged: _onTabChanged),
@@ -34,6 +35,10 @@ class _HomePageState extends State<HomePage> {
 
   void _onTabChanged(int index) {
     setState(() => _currentIndex = index);
+
+    if (index == 0) {
+      _homeTodayKey.currentState?.reload();
+    }
   }
 
   @override

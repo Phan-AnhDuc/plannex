@@ -3,7 +3,9 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 // Components
 import '../components/app_text.dart';
+import '../data/app_shared_pref.dart';
 import 'home_page.dart';
+import 'login_screen.dart';
 
 class SettingScreen extends StatefulWidget {
   final Function(int)? onTabChanged;
@@ -430,9 +432,14 @@ class _SettingScreenState extends State<SettingScreen> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              debugPrint('Logged out');
+              await AppSharedPref.clear();
+              // Navigate to login and clear stack
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (context) => const LoginScreen()),
+                (route) => false,
+              );
             },
             child: const Text(
               'Log Out',
