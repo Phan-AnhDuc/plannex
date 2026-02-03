@@ -29,4 +29,18 @@ abstract class RestClientApi {
     @Query('includeDone') bool includeDone,
     @Query('includeCancelled') bool includeCancelled,
   );
+
+  @PATCH(Endpoints.tasks + '{id}')
+  Future<void> updateTask(@Path('id') String id, @Body() Map<String, dynamic> body);
+
+  @GET(Endpoints.tasksCount)
+  Future<TasksCountResponse> getTasksCount(
+    @Query('fromDate') String fromDate,
+    @Query('toDate') String toDate,
+    @Query('includeDone') bool includeDone,
+    @Query('includeCancelled') bool includeCancelled,
+  );
+
+  @POST(Endpoints.login)
+  Future<void> login( @Query('timezone') String timezone);
 }

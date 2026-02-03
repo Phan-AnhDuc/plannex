@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
@@ -7,6 +8,9 @@ import 'package:get/get.dart';
 import '../components/app_text.dart';
 // Services
 import '../services/firebase_auth_service.dart';
+// Repository & data
+import '../repository/repository.dart';
+import '../data/app_shared_pref.dart';
 // Pages
 import 'home_page.dart';
 
@@ -614,9 +618,8 @@ class _LoginScreenState extends State<LoginScreen> {
     EasyLoading.dismiss();
 
     if (result.isSuccess && result.user != null) {
-      // await _saveTokens(result.user!);
       _showSuccess('Signed in successfully!');
-      _navigateToHome();
+      await _onLoginSuccess(result.user!);
     } else {
       _showError(result.errorMessage ?? 'Failed to sign in with Google');
     }
@@ -645,9 +648,8 @@ class _LoginScreenState extends State<LoginScreen> {
     EasyLoading.dismiss();
 
     if (result.isSuccess && result.user != null) {
-      // await _saveTokens(result.user!);
       _showSuccess(_isSignIn ? 'Signed in successfully!' : 'Account created successfully!');
-      _navigateToHome();
+      await _onLoginSuccess(result.user!);
     } else {
       _showError(result.errorMessage ?? 'An error occurred');
     }
@@ -682,12 +684,41 @@ class _LoginScreenState extends State<LoginScreen> {
     EasyLoading.dismiss();
 
     if (result.isSuccess && result.user != null) {
-      // await _saveTokens(result.user!);
       _showSuccess('Welcome!');
-      _navigateToHome();
+      await _onLoginSuccess(result.user!);
     } else {
       _showError(result.errorMessage ?? 'Failed to continue');
     }
+  }
+
+  /// Lấy timezone local dạng IANA (ví dụ Asia/Ho_Chi_Minh).
+  String _getLocalTimezone() {
+    final offsetHours = DateTime.now().timeZoneOffset.inHours;
+    const ianaByOffset = {
+      7: 'Asia/Ho_Chi_Minh',
+      8: 'Asia/Singapore',
+      9: 'Asia/Tokyo',
+      0: 'UTC',
+      -5: 'America/New_York',
+      -8: 'America/Los_Angeles',
+    };
+    return ianaByOffset[offsetHours] ?? 'UTC';
+  }
+
+  /// Sau khi đăng nhập thành công: lưu token (nếu cần), gọi API login với timezone, rồi vào Home.
+  Future<void> _onLoginSuccess(User user) async {
+    final token = await user.getIdToken();
+    if (token != null && token.isNotEmpty) {
+      await AppSharedPref.setToken(token);
+    }
+    final timezone = _getLocalTimezone();
+    try {
+      await Api.instance.restClient.login(timezone);
+    } catch (_) {
+      // Vẫn vào Home dù API login lỗi (mạng, backend...)
+    }
+    if (!mounted) return;
+    _navigateToHome();
   }
 
   void _navigateToHome() {

@@ -46,16 +46,45 @@ class _HomeTodayScreenState extends HomeTodayScreenState {
     return DateFormat('EEE, MMM d').format(date);
   }
 
-  String? _formatTime(String? startAt, int durationMinutes) {
-    if (startAt == null) return null;
+  String? _formatTime(String? startAt, int durationMinutes, {String? date}) {
+    if (startAt == null || startAt.isEmpty) return null;
     try {
-      final start = DateTime.parse(startAt);
+      DateTime start;
+      
+      // Check if startAt is just time format (HH:mm:ss) or full datetime
+      if (startAt.length <= 8 && startAt.contains(':')) {
+        // It's just time (e.g., "21:25:00"), need to combine with date
+        if (date == null || date.isEmpty) return null;
+        final timeParts = startAt.split(':');
+        if (timeParts.length < 2) return null;
+        
+        final dateParts = date.split('-');
+        if (dateParts.length != 3) return null;
+        
+        start = DateTime(
+          int.parse(dateParts[0]), // year
+          int.parse(dateParts[1]), // month
+          int.parse(dateParts[2]), // day
+          int.parse(timeParts[0]), // hour
+          int.parse(timeParts[1]), // minute
+          timeParts.length > 2 ? int.parse(timeParts[2]) : 0, // second
+        );
+      } else {
+        // It's full datetime, normalize format
+        String normalized = startAt.trim();
+        if (normalized.contains(' ') && !normalized.contains('T')) {
+          normalized = normalized.replaceFirst(' ', 'T');
+        }
+        start = DateTime.parse(normalized);
+      }
+
       final end = start.add(Duration(minutes: durationMinutes));
       final timeFormat = DateFormat('h:mm a');
       final startTime = timeFormat.format(start);
       final endTime = timeFormat.format(end);
       return '$startTime - $endTime';
     } catch (e) {
+      debugPrint('Error formatting time: $e');
       return null;
     }
   }
@@ -80,15 +109,39 @@ class _HomeTodayScreenState extends HomeTodayScreenState {
     for (final task in tasks) {
       DateTime? startDateTime;
       try {
-        if (!task.allDay) {
-          startDateTime = DateTime.parse(task.startAt);
+        if (!task.allDay && task.startAt.isNotEmpty) {
+          // Check if startAt is just time format (HH:mm:ss) or full datetime
+          if (task.startAt.length <= 8 && task.startAt.contains(':')) {
+            // It's just time, combine with date
+            final timeParts = task.startAt.split(':');
+            if (timeParts.length >= 2 && task.date.isNotEmpty) {
+              final dateParts = task.date.split('-');
+              if (dateParts.length == 3) {
+                startDateTime = DateTime(
+                  int.parse(dateParts[0]),
+                  int.parse(dateParts[1]),
+                  int.parse(dateParts[2]),
+                  int.parse(timeParts[0]),
+                  int.parse(timeParts[1]),
+                  timeParts.length > 2 ? int.parse(timeParts[2]) : 0,
+                );
+              }
+            }
+          } else {
+            // It's full datetime
+            String normalized = task.startAt.trim();
+            if (normalized.contains(' ') && !normalized.contains('T')) {
+              normalized = normalized.replaceFirst(' ', 'T');
+            }
+            startDateTime = DateTime.parse(normalized);
+          }
         }
       } catch (e) {
         // If parsing fails, treat as no time
+        debugPrint('Error parsing startAt: ${task.startAt}, date: ${task.date}, error: $e');
       }
 
       final groupTitle = _getTimeGroup(startDateTime);
-      final timeString = task.allDay ? null : _formatTime(task.startAt, task.durationMinutes);
       final isCompleted = task.status == 'DONE' || task.status == 'COMPLETED';
 
       final List<String>? tags = [];
@@ -100,8 +153,11 @@ class _HomeTodayScreenState extends HomeTodayScreenState {
       final taskItem = TaskItem(
         id: task.id,
         title: task.title,
-        time: timeString,
+        startAt: task.startAt,
+        date: task.date,
+        durationMinutes: task.durationMinutes,
         isCompleted: isCompleted,
+        priority: task.priority,
         tags: tags?.isNotEmpty == true ? tags : null,
       );
 
@@ -485,16 +541,30 @@ class _HomeTodayScreenState extends HomeTodayScreenState {
 
                     SizedBox(height: 4.h),
 
-                    // Time or tags
+                    // Priority, Time or tags
                     Row(
                       children: [
-                        if (task.time != null)
-                          AppText(
-                            task.time!,
-                            textType: AppTextType.s14w4,
-                            color: const Color(0xFF6B7280),
-                          ),
-                        if (task.tags != null && task.tags!.isNotEmpty) ...task.tags!.map((tag) => _buildTag(tag)),
+                        if (task.priority != null) _buildPriorityTag(task.priority!),
+                        if (task.priority != null) SizedBox(width: 8.w),
+                        Builder(
+                          builder: (context) {
+                            final displayTime = _formatTime(
+                              task.startAt,
+                              task.durationMinutes,
+                              date: task.date,
+                            );
+                            if (displayTime == null) {
+                              return const SizedBox.shrink();
+                            }
+                            return AppText(
+                              displayTime,
+                              textType: AppTextType.s14w4,
+                              color: const Color(0xFF6B7280),
+                            );
+                          },
+                        ),
+                        if (task.tags != null && task.tags!.isNotEmpty)
+                          ...task.tags!.map((tag) => _buildTag(tag)),
                       ],
                     ),
                   ],
@@ -502,6 +572,51 @@ class _HomeTodayScreenState extends HomeTodayScreenState {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  /// Priority tag widget
+  Widget _buildPriorityTag(String priority) {
+    String displayText;
+    Color backgroundColor;
+    Color textColor;
+
+    switch (priority.toUpperCase()) {
+      case 'HIGH':
+        displayText = 'High';
+        backgroundColor = const Color(0xFFFFE5E5); // Light red
+        textColor = const Color(0xFFDC2626); // Dark red
+        break;
+      case 'MEDIUM':
+        displayText = 'Medium';
+        backgroundColor = const Color(0xFFFFF4E5); // Light yellow/orange
+        textColor = const Color(0xFFF59E0B); // Dark yellow/orange
+        break;
+      case 'LOW':
+        displayText = 'Low';
+        backgroundColor = const Color(0xFFE5F9E5); // Light green
+        textColor = const Color(0xFF10B981); // Dark green
+        break;
+      default:
+        displayText = priority;
+        backgroundColor = const Color(0xFFF3F4F6);
+        textColor = const Color(0xFF6B7280);
+    }
+
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(12.r),
+      ),
+      child: Text(
+        displayText,
+        style: TextStyle(
+          fontSize: 12.sp,
+          fontWeight: FontWeight.w500,
+          color: textColor,
         ),
       ),
     );
@@ -636,14 +751,33 @@ class _HomeTodayScreenState extends HomeTodayScreenState {
   }
 
   // Actions
-  void _toggleTask(TaskItem task) {
+  Future<void> _toggleTask(TaskItem task) async {
+    final bool wasCompleted = task.isCompleted;
+    final String newStatus = wasCompleted ? 'PENDING' : 'DONE';
+
+    // Optimistic update UI
     setState(() {
       task.isCompleted = !task.isCompleted;
     });
+
+    try {
+      await Api.instance.restClient.updateTask(task.id, {'status': newStatus});
+    } catch (e) {
+      // Revert UI on error
+      if (mounted) {
+        setState(() {
+          task.isCompleted = wasCompleted;
+        });
+      }
+      debugPrint('Error updating task status: $e');
+    }
   }
 
   void _onAddTask() {
-    Navigator.push(context, MaterialPageRoute(builder: (context) => NewTaskScreen()));
+    Navigator.push(context, MaterialPageRoute(builder: (context) => NewTaskScreen()))
+        .then((_) {
+      if (mounted) _getTasksRange();
+    });
   }
 
   void _onAIText() {
@@ -669,15 +803,21 @@ class TaskGroup {
 class TaskItem {
   final String id;
   final String title;
-  final String? time;
+  final String startAt;
+  final String date;
+  final int durationMinutes;
   bool isCompleted;
+  final String? priority;
   final List<String>? tags;
 
   TaskItem({
     required this.id,
     required this.title,
-    this.time,
+    required this.startAt,
+    required this.date,
+    required this.durationMinutes,
     this.isCompleted = false,
+    this.priority,
     this.tags,
   });
 }

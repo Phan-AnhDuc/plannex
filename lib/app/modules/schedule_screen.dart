@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 
 // Components
 import '../components/app_text.dart';
+import '../repository/repository.dart';
+import '../data/models/task_models.dart';
 import 'home_page.dart';
 
 class ScheduleScreen extends StatefulWidget {
@@ -24,94 +26,204 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   DateTime _selectedDate = DateTime.now();
   DateTime _focusedDate = DateTime.now();
 
-  // Sample tasks data
-  final List<ScheduleTask> _tasks = [
-    ScheduleTask(
-      id: '1',
-      title: 'Draft Q1 marketing plan',
-      startTime: DateTime(2025, 11, 28, 9, 0),
-      endTime: DateTime(2025, 11, 28, 9, 30),
-      color: const Color(0xFFDBEAFE),
-      dotColor: const Color(0xFFF59E0B),
-      category: 'Work',
-    ),
-    ScheduleTask(
-      id: '2',
-      title: 'Review new design mockups',
-      startTime: DateTime(2025, 11, 28, 10, 0),
-      endTime: DateTime(2025, 11, 28, 11, 0),
-      color: const Color(0xFFF3F4F6),
-      isCompleted: true,
-      category: 'Work',
-    ),
-    ScheduleTask(
-      id: '3',
-      title: 'Prepare for client call',
-      startTime: DateTime(2025, 11, 28, 11, 15),
-      endTime: DateTime(2025, 11, 28, 12, 0),
-      color: const Color(0xFFF3F4F6),
-      category: 'Personal',
-    ),
-    ScheduleTask(
-      id: '4',
-      title: 'Team Standup',
-      startTime: DateTime(2025, 11, 28, 11, 30),
-      endTime: DateTime(2025, 11, 28, 12, 30),
-      color: const Color(0xFFF3F4F6),
-      category: 'Work',
-    ),
-    // Week view tasks
-    ScheduleTask(
-      id: '5',
-      title: 'Project Kick-off',
-      startTime: DateTime(2025, 11, 24, 10, 0),
-      endTime: DateTime(2025, 11, 24, 11, 0),
-      color: const Color(0xFFFDE047),
-      category: 'Work',
-    ),
-    ScheduleTask(
-      id: '6',
-      title: 'Design Review\nDiscuss new mockups',
-      startTime: DateTime(2025, 11, 26, 9, 0),
-      endTime: DateTime(2025, 11, 26, 11, 30),
-      color: const Color(0xFF93C5FD),
-      category: 'Work',
-    ),
-    ScheduleTask(
-      id: '7',
-      title: 'Team Sync',
-      startTime: DateTime(2025, 11, 25, 14, 0),
-      endTime: DateTime(2025, 11, 25, 15, 0),
-      color: const Color(0xFF86EFAC),
-      category: 'Work',
-    ),
-    ScheduleTask(
-      id: '8',
-      title: '1:1 with Manager',
-      startTime: DateTime(2025, 11, 28, 22, 0),
-      endTime: DateTime(2025, 11, 28, 23, 0),
-      color: const Color(0xFFD8B4FE),
-      category: 'Work',
-    ),
-    ScheduleTask(
-      id: '9',
-      title: 'Client Call',
-      startTime: DateTime(2025, 11, 26, 23, 30),
-      endTime: DateTime(2025, 11, 27, 0, 30),
-      color: const Color(0xFFFDE047),
-      category: 'Work',
-    ),
-  ];
+  // Day view: tasks from API
+  List<ScheduleTask> _dayTasks = [];
+  bool _dayLoading = false;
+
+  // Sample tasks data (for Week view)
+  final List<ScheduleTask> _tasks = [];
+
+  // Month view: tasks của ngày đang chọn (từ getTasksRange)
+  List<ScheduleTask> _monthDayTasks = [];
+  bool _monthDayLoading = false;
 
   List<ScheduleTask> get _tasksForSelectedDay {
+    if (_viewMode == 0) return _dayTasks;
+    if (_viewMode == 2) return _monthDayTasks;
     return _tasks.where((task) {
-      return task.startTime.year == _selectedDate.year &&
-          task.startTime.month == _selectedDate.month &&
-          task.startTime.day == _selectedDate.day;
+      return task.startTime.year == _selectedDate.year && task.startTime.month == _selectedDate.month && task.startTime.day == _selectedDate.day;
     }).toList();
   }
 
-  int get _unscheduledTaskCount => 3;
+  @override
+  void initState() {
+    super.initState();
+    if (_viewMode == 0) _fetchTasksForDay(_selectedDate);
+  }
+
+  Map<String, int> _monthDateCounts = {};
+  int _monthCountsVersion = 0;
+
+  /// Gọi getTasksRange cho ngày đang chọn ở Month view (includeDone true, includeCancelled true).
+  Future<void> _fetchTasksForSelectedDayInMonth(DateTime date) async {
+    setState(() => _monthDayLoading = true);
+    try {
+      final dateStr = DateFormat('yyyy-MM-dd').format(date);
+      final res = await Api.instance.restClient.getTasksRange(
+        dateStr,
+        dateStr,
+        true, // includeDone
+        true, // includeCancelled
+      );
+      final list = _tasksFromRangeResponse(res, date);
+      if (mounted)
+        setState(() {
+          _monthDayTasks = list;
+          _monthDayLoading = false;
+        });
+    } catch (e) {
+      if (mounted)
+        setState(() {
+          _monthDayTasks = [];
+          _monthDayLoading = false;
+        });
+      debugPrint('Schedule getTasksRange (month day) error: $e');
+    }
+  }
+
+  Future<void> _fetchTasksCountForMonth(DateTime date) async {
+    final startOfMonth = DateTime(date.year, date.month, 1);
+    final endOfMonth = DateTime(date.year, date.month + 1, 0);
+    final fromDate = DateFormat('yyyy-MM-dd').format(startOfMonth);
+    final toDate = DateFormat('yyyy-MM-dd').format(endOfMonth);
+    try {
+      final res = await Api.instance.restClient.getTasksCount(
+        fromDate,
+        toDate,
+        true,
+        false,
+      );
+      final map = <String, int>{};
+      for (final c in res.counts) {
+        map[c.date] = c.count;
+      }
+      if (mounted)
+        setState(() {
+          _monthDateCounts = map;
+          _monthCountsVersion++;
+        });
+    } catch (e) {
+      debugPrint('Schedule getTasksCount error: $e');
+      if (mounted)
+        setState(() {
+          _monthDateCounts = {};
+          _monthCountsVersion++;
+        });
+    }
+  }
+
+  /// Toàn bộ task từ API cho ngày đang chọn — dùng cho view Manage (list + timeline).
+  List<Task> _unscheduledTasksFromApi = [];
+
+  /// Gọi API getTasksRange cho một ngày. Day view: includeCancelled false; Week: includeCancelled true.
+  Future<void> _fetchTasksForDay(DateTime date, {bool includeCancelled = false}) async {
+    setState(() => _dayLoading = true);
+    try {
+      final dateStr = DateFormat('yyyy-MM-dd').format(date);
+      final res = await Api.instance.restClient.getTasksRange(
+        dateStr,
+        dateStr,
+        true, // includeDone
+        includeCancelled,
+      );
+      final list = _tasksFromRangeResponse(res, date);
+      if (mounted)
+        setState(() {
+          _dayTasks = list;
+          _unscheduledTasksFromApi = res.tasks;
+          _dayLoading = false;
+        });
+    } catch (e) {
+      if (mounted)
+        setState(() {
+          _dayTasks = [];
+          _unscheduledTasksFromApi = [];
+          _dayLoading = false;
+        });
+      debugPrint('Schedule getTasksRange error: $e');
+    }
+  }
+
+  /// Map Task (API) -> ScheduleTask. Bỏ qua allDay. usePriorityColor: màu theo priority (Week view).
+  List<ScheduleTask> _tasksFromRangeResponse(TasksRangeResponse res, DateTime forDate, {bool usePriorityColor = false}) {
+    final list = <ScheduleTask>[];
+    for (final t in res.tasks) {
+      if (t.allDay) continue;
+      DateTime? start;
+      try {
+        if (t.startAt.isNotEmpty) {
+          final timeOnly = RegExp(r'^\d{1,2}:\d{2}(:\d{2})?$').hasMatch(t.startAt.trim());
+          if (timeOnly) {
+            final timeParts = t.startAt.trim().split(':');
+            if (timeParts.length >= 2) {
+              final dateStr = t.date.isNotEmpty ? t.date : DateFormat('yyyy-MM-dd').format(forDate);
+              final dateParts = dateStr.split('-');
+              if (dateParts.length == 3) {
+                start = DateTime(
+                  int.parse(dateParts[0]),
+                  int.parse(dateParts[1]),
+                  int.parse(dateParts[2]),
+                  int.parse(timeParts[0]),
+                  int.parse(timeParts[1]),
+                  timeParts.length > 2 ? int.parse(timeParts[2]) : 0,
+                );
+              }
+            }
+          } else {
+            String normalized = t.startAt.trim();
+            if (normalized.contains(' ') && !normalized.contains('T')) {
+              normalized = normalized.replaceFirst(' ', 'T');
+            }
+            start = DateTime.parse(normalized);
+          }
+        }
+      } catch (_) {}
+      if (start == null) continue;
+      final end = start.add(Duration(minutes: t.durationMinutes));
+      final isDone = t.status == 'DONE' || t.status == 'COMPLETED';
+      list.add(ScheduleTask(
+        id: t.id,
+        title: t.title,
+        startTime: start,
+        endTime: end,
+        color: usePriorityColor ? _colorFromPriority(t.priority) : const Color(0xFFF3F4F6),
+        dotColor: const Color(0xFFF59E0B),
+        isCompleted: isDone,
+        category: null,
+      ));
+    }
+    list.sort((a, b) => a.startTime.compareTo(b.startTime));
+    return list;
+  }
+
+  bool _showUnscheduledList = false;
+
+  int get _unscheduledTaskCount => _unscheduledTasksFromApi.length;
+
+  String _formatPriorityLabel(String? priority) {
+    if (priority == null || priority.isEmpty) return 'Medium priority';
+    switch (priority.toUpperCase()) {
+      case 'HIGH':
+        return 'High priority';
+      case 'LOW':
+        return 'Low priority';
+      default:
+        return 'Medium priority';
+    }
+  }
+
+  /// Màu block theo priority (Week view): HIGH vàng, MEDIUM xanh dương, LOW xanh lá.
+  Color _colorFromPriority(String? priority) {
+    if (priority == null || priority.isEmpty) return const Color(0xFF93C5FD);
+    switch (priority.toUpperCase()) {
+      case 'HIGH':
+        return const Color(0xFFFDE047);
+      case 'LOW':
+        return const Color(0xFF86EFAC);
+      default:
+        return const Color(0xFF93C5FD);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -157,7 +269,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             'Schedule',
             textType: AppTextType.custom,
             fontSize: 28,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w500,
             color: const Color(0xFF1F2937),
           ),
           // Today button
@@ -221,7 +333,19 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _viewMode = index),
+        onTap: () {
+          setState(() {
+            _viewMode = index;
+            if (index == 1) _focusedDate = DateTime.now();
+          });
+          if (index == 1) {
+            _fetchTasksForWeek(DateTime.now());
+          }
+          if (index == 2) {
+            _fetchTasksCountForMonth(_focusedDate);
+            _fetchTasksForSelectedDayInMonth(_selectedDate);
+          }
+        },
         child: Container(
           height: double.infinity,
           decoration: BoxDecoration(
@@ -241,9 +365,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             label,
             textType: AppTextType.s14w4,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-            color: isSelected
-                ? const Color(0xFF1F2937)
-                : const Color(0xFF6B7280),
+            color: isSelected ? const Color(0xFF1F2937) : const Color(0xFF6B7280),
           ),
         ),
       ),
@@ -264,9 +386,13 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         // Unscheduled tasks banner
         _buildUnscheduledBanner(),
 
-        // Timeline
+        // Timeline hoặc Unscheduled tasks view
         Expanded(
-          child: _buildDayTimeline(),
+          child: _showUnscheduledList
+              ? _buildUnscheduledTasksView()
+              : _dayLoading
+                  ? const Center(child: CircularProgressIndicator(color: Color(0xFF6366F1),))
+                  : _buildDayTimeline(),
         ),
       ],
     );
@@ -284,49 +410,41 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         itemCount: dates.length,
         itemBuilder: (context, index) {
           final date = dates[index];
-          final isSelected = _selectedDate.day == date.day &&
-              _selectedDate.month == date.month;
+          final isSelected = _selectedDate.day == date.day && _selectedDate.month == date.month;
           final isToday = date.day == today.day && date.month == today.month;
 
           return GestureDetector(
-            onTap: () => setState(() => _selectedDate = date),
+            onTap: () {
+              setState(() => _selectedDate = date);
+              if (_viewMode == 0) _fetchTasksForDay(date);
+            },
             child: Container(
               width: 64.w,
               margin: EdgeInsets.only(right: 12.w),
               decoration: BoxDecoration(
-                color: isSelected
-                    ? const Color(0xFF6366F1)
-                    : Colors.white,
+                color: isSelected ? const Color(0xFF6366F1) : Colors.white,
                 borderRadius: BorderRadius.circular(16.r),
                 border: Border.all(
-                  color: isSelected
-                      ? const Color(0xFF6366F1)
-                      : const Color(0xFFE5E7EB),
+                  color: isSelected ? const Color(0xFF6366F1) : const Color(0xFFE5E7EB),
                 ),
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   AppText(
-                    isToday
-                        ? 'TODAY'
-                        : DateFormat('E').format(date).toUpperCase(),
+                    isToday ? 'TODAY' : DateFormat('E').format(date).toUpperCase(),
                     textType: AppTextType.custom,
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: isSelected
-                        ? Colors.white.withOpacity(0.8)
-                        : const Color(0xFF6B7280),
+                    color: isSelected ? Colors.white.withOpacity(0.8) : const Color(0xFF6B7280),
                   ),
                   SizedBox(height: 4.h),
                   AppText(
                     date.day.toString(),
                     textType: AppTextType.custom,
                     fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: isSelected
-                        ? Colors.white
-                        : const Color(0xFF1F2937),
+                    fontWeight: FontWeight.w500,
+                    color: isSelected ? Colors.white : const Color(0xFF1F2937),
                   ),
                 ],
               ),
@@ -338,49 +456,161 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   }
 
   Widget _buildUnscheduledBanner() {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          AppText(
-            'You have $_unscheduledTaskCount unscheduled tasks',
-            textType: AppTextType.s14w4,
-            color: const Color(0xFF6B7280),
-          ),
-          GestureDetector(
-            onTap: () {},
-            child: AppText(
+    return GestureDetector(
+      onTap: () => setState(() => _showUnscheduledList = !_showUnscheduledList),
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            AppText(
+              'You have $_unscheduledTaskCount unscheduled tasks',
+              textType: AppTextType.s14w4,
+              color: const Color(0xFF6B7280),
+            ),
+            AppText(
               'Manage',
               textType: AppTextType.s14w4,
               fontWeight: FontWeight.w600,
               color: const Color(0xFF6366F1),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUnscheduledTasksView() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 16.h),
+          child: Row(
+            children: [
+              AppText(
+                'Unscheduled tasks ($_unscheduledTaskCount)',
+                textType: AppTextType.custom,
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF1F2937),
+              ),
+            ],
           ),
+        ),
+        Expanded(
+          child: ListView.separated(
+            padding: EdgeInsets.symmetric(horizontal: 16.w),
+            itemCount: _unscheduledTasksFromApi.length,
+            separatorBuilder: (_, __) => SizedBox(height: 12.h),
+            itemBuilder: (context, index) {
+              final task = _unscheduledTasksFromApi[index];
+              final durationStr = task.durationMinutes >= 60 ? '${task.durationMinutes ~/ 60}h' : '${task.durationMinutes}m';
+              final priorityLabel = _formatPriorityLabel(task.priority);
+              return Container(
+                padding: EdgeInsets.all(16.w),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF3F4F6),
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          AppText(
+                            task.title,
+                            textType: AppTextType.s16w4,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF1F2937),
+                          ),
+                          SizedBox(height: 6.h),
+                          AppText(
+                            '$durationStr • $priorityLabel',
+                            textType: AppTextType.s14w4,
+                            color: const Color(0xFF6B7280),
+                          ),
+                        ],
+                      ),
+                    ),
+                    OutlinedButton(
+                      onPressed: () {},
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF6366F1),
+                        side: const BorderSide(color: Color(0xFF6366F1)),
+                        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 10.h),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8.r),
+                        ),
+                      ),
+                      child: AppText(
+                        'Quick set time',
+                        textType: AppTextType.s14w4,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFF6366F1),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  static const int _dayStartHour = 0;
+  static const int _dayEndHour = 24;
+  static const double _rowHeight = 80;
+
+  Widget _buildDayTimeline() {
+    final now = DateTime.now();
+    final isToday = _selectedDate.year == now.year && _selectedDate.month == now.month && _selectedDate.day == now.day;
+    final currentTimeTop = isToday && now.hour >= _dayStartHour && now.hour < _dayEndHour ? (now.hour - _dayStartHour) * _rowHeight.h + (now.minute + now.second / 60) / 60 * _rowHeight.h : null;
+
+    return SingleChildScrollView(
+      padding: EdgeInsets.symmetric(horizontal: 16.w),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Column(
+            children: List.generate(
+              _dayEndHour - _dayStartHour,
+              (index) {
+                final hour = _dayStartHour + index;
+                final tasksAtHour = _tasksForSelectedDay.where((task) {
+                  return task.startTime.hour == hour;
+                }).toList();
+                return _buildTimelineRow(hour, tasksAtHour, now: now, isToday: isToday);
+              },
+            ),
+          ),
+          if (currentTimeTop != null)
+            Positioned(
+              top: currentTimeTop,
+              left: 0,
+              right: 0,
+              child: Container(
+                height: 2,
+                color: const Color(0xFFF59E0B),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildDayTimeline() {
-    return SingleChildScrollView(
-      padding: EdgeInsets.symmetric(horizontal: 16.w),
-      child: Column(
-        children: List.generate(12, (index) {
-          final hour = 8 + index;
-          final tasksAtHour = _tasksForSelectedDay.where((task) {
-            return task.startTime.hour == hour;
-          }).toList();
-
-          return _buildTimelineRow(hour, tasksAtHour);
-        }),
-      ),
-    );
-  }
-
-  Widget _buildTimelineRow(int hour, List<ScheduleTask> tasks) {
+  Widget _buildTimelineRow(
+    int hour,
+    List<ScheduleTask> tasks, {
+    required DateTime now,
+    required bool isToday,
+  }) {
     return SizedBox(
-      height: 80.h,
+      height: _rowHeight.h,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -408,7 +638,12 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                 ? const SizedBox.shrink()
                 : Wrap(
                     spacing: 8.w,
-                    children: tasks.map((task) => _buildDayTaskCard(task)).toList(),
+                    children: tasks
+                        .map((task) => _buildDayTaskCard(
+                              task,
+                              isHighlighted: isToday && _isTaskWithin30MinOfNow(task, now),
+                            ))
+                        .toList(),
                   ),
           ),
         ],
@@ -416,22 +651,44 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     );
   }
 
-  Widget _buildDayTaskCard(ScheduleTask task) {
+  /// Task trùng trong khoảng 30 phút so với thời gian hiện tại (overlap với [now-30m, now+30m]).
+  bool _isTaskWithin30MinOfNow(ScheduleTask task, DateTime now) {
+    final window = const Duration(minutes: 30);
+    final start = now.subtract(window);
+    final end = now.add(window);
+    return task.startTime.isBefore(end) && task.endTime.isAfter(start);
+  }
+
+  Widget _buildDayTaskCard(ScheduleTask task, {bool isHighlighted = false}) {
     final timeFormat = DateFormat('HH:mm');
+    // Highlight: lavender nền, viền tím trái, đường cam dưới title. Không highlight: trắng, không viền.
+    final bgColor = isHighlighted ? const Color(0xFFE0E4FA) : Colors.white;
+    final leftBorderColor = isHighlighted ? const Color(0xFF6366F1) : null;
+    final showOrangeLine = isHighlighted;
+    final timeColor = isHighlighted ? const Color(0xFFF59E0B) : const Color(0xFF6B7280);
 
     return Container(
       padding: EdgeInsets.all(12.w),
       decoration: BoxDecoration(
-        color: task.color,
+        color: bgColor,
         borderRadius: BorderRadius.circular(12.r),
-        border: task.dotColor != null
+        border: leftBorderColor != null
             ? Border(
                 left: BorderSide(
-                  color: task.dotColor!,
+                  color: leftBorderColor,
                   width: 3,
                 ),
               )
             : null,
+        boxShadow: isHighlighted
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -445,12 +702,12 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           SizedBox(height: 4.h),
           Row(
             children: [
-              if (task.dotColor != null) ...[
+              if (isHighlighted) ...[
                 Container(
                   width: 8.w,
                   height: 8.w,
-                  decoration: BoxDecoration(
-                    color: task.dotColor,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF59E0B),
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -459,7 +716,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
               AppText(
                 '${timeFormat.format(task.startTime)}-${timeFormat.format(task.endTime)}',
                 textType: AppTextType.s14w4,
-                color: task.dotColor ?? const Color(0xFF6B7280),
+                color: timeColor,
               ),
             ],
           ),
@@ -499,9 +756,10 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           GestureDetector(
-            onTap: () => setState(() {
-              _focusedDate = _focusedDate.subtract(const Duration(days: 7));
-            }),
+            onTap: () {
+              setState(() => _focusedDate = _focusedDate.subtract(const Duration(days: 7)));
+              _fetchTasksForWeek(_focusedDate);
+            },
             child: Icon(
               Icons.chevron_left,
               size: 24.sp,
@@ -515,9 +773,10 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             color: const Color(0xFF1F2937),
           ),
           GestureDetector(
-            onTap: () => setState(() {
-              _focusedDate = _focusedDate.add(const Duration(days: 7));
-            }),
+            onTap: () {
+              setState(() => _focusedDate = _focusedDate.add(const Duration(days: 7)));
+              _fetchTasksForWeek(_focusedDate);
+            },
             child: Icon(
               Icons.chevron_right,
               size: 24.sp,
@@ -529,137 +788,218 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     );
   }
 
+  static const double _weekDayWidth = 56.0;
+  static const int _weekStartHour = 8;
+  static const int _weekEndHour = 18;
+  static const double _weekPixelsPerHour = 48.0;
+  static const double _weekTimelineHeight = (_weekEndHour - _weekStartHour) * _weekPixelsPerHour;
+
+  List<ScheduleTask> _weekTasks = [];
+  bool _weekLoading = false;
+
+  Future<void> _fetchTasksForWeek(DateTime date) async {
+    final startOfWeek = date.subtract(Duration(days: date.weekday - 1));
+    final endOfWeek = startOfWeek.add(const Duration(days: 6));
+    final fromDate = DateFormat('yyyy-MM-dd').format(startOfWeek);
+    final toDate = DateFormat('yyyy-MM-dd').format(endOfWeek);
+    setState(() => _weekLoading = true);
+    try {
+      final res = await Api.instance.restClient.getTasksRange(
+        fromDate,
+        toDate,
+        true,
+        true,
+      );
+      final list = _tasksFromRangeResponse(res, startOfWeek, usePriorityColor: true);
+      if (mounted) setState(() {
+        _weekTasks = list;
+        _weekLoading = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() {
+        _weekTasks = [];
+        _weekLoading = false;
+      });
+      debugPrint('Schedule getTasksRange (week) error: $e');
+    }
+  }
+
+  Future<void> _onWeekDayTapped(DateTime day) async {
+    setState(() => _selectedDate = day);
+    await _fetchTasksForDay(day, includeCancelled: true);
+    if (mounted) setState(() => _viewMode = 0);
+  }
+
+  List<ScheduleTask> _weekTasksForDay(DateTime day) {
+    return _weekTasks.where((t) =>
+        t.startTime.year == day.year &&
+        t.startTime.month == day.month &&
+        t.startTime.day == day.day).toList();
+  }
+
   Widget _buildWeekGrid() {
     final startOfWeek = _focusedDate.subtract(
       Duration(days: _focusedDate.weekday - 1),
     );
-    final days = List.generate(5, (i) => startOfWeek.add(Duration(days: i)));
+    final days = List.generate(7, (i) => startOfWeek.add(Duration(days: i)));
+    final now = DateTime.now();
 
-    return SingleChildScrollView(
-      child: Column(
-        children: [
-          // Day headers
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16.w),
-            child: Row(
-              children: [
-                SizedBox(width: 40.w),
-                ...days.map((day) {
-                  final isToday = day.day == DateTime.now().day &&
-                      day.month == DateTime.now().month;
-                  return Expanded(
-                    child: Column(
+    return _weekLoading
+        ? const Center(child: CircularProgressIndicator())
+        : SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Day headers (Mon-Sun)
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16.w),
+                    child: Row(
                       children: [
-                        AppText(
-                          DateFormat('E').format(day).toUpperCase(),
-                          textType: AppTextType.custom,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: const Color(0xFF6B7280),
-                        ),
-                        SizedBox(height: 4.h),
-                        Container(
-                          width: 32.w,
-                          height: 32.w,
-                          decoration: BoxDecoration(
-                            color: isToday
-                                ? const Color(0xFF6366F1)
-                                : Colors.transparent,
-                            shape: BoxShape.circle,
-                          ),
-                          alignment: Alignment.center,
-                          child: AppText(
-                            day.day.toString(),
-                            textType: AppTextType.s14w4,
-                            fontWeight: FontWeight.w600,
-                            color: isToday
-                                ? Colors.white
-                                : const Color(0xFF1F2937),
-                          ),
-                        ),
+                        SizedBox(width: 40.w),
+                        ...days.map((day) {
+                          final isToday = day.day == now.day && day.month == now.month && day.year == now.year;
+                          return GestureDetector(
+                            onTap: () => _onWeekDayTapped(day),
+                            child: SizedBox(
+                              width: _weekDayWidth.w,
+                              child: Column(
+                                children: [
+                                  AppText(
+                                    DateFormat('E').format(day).toUpperCase(),
+                                    textType: AppTextType.custom,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                    color: const Color(0xFF6B7280),
+                                  ),
+                                  SizedBox(height: 4.h),
+                                  Container(
+                                    width: 32.w,
+                                    height: 32.w,
+                                    decoration: BoxDecoration(
+                                      color: isToday ? const Color(0xFF6366F1) : Colors.transparent,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: AppText(
+                                      day.day.toString(),
+                                      textType: AppTextType.s14w4,
+                                      fontWeight: FontWeight.w600,
+                                      color: isToday ? Colors.white : const Color(0xFF1F2937),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }),
                       ],
                     ),
-                  );
-                }),
-              ],
-            ),
-          ),
+                  ),
 
-          SizedBox(height: 16.h),
+                  SizedBox(height: 12.h),
 
-          // Time grid
-          ...List.generate(9, (index) {
-            final hour = 8 + (index * 2);
-            return _buildWeekTimeRow(hour, days);
-          }),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildWeekTimeRow(int hour, List<DateTime> days) {
-    return SizedBox(
-      height: 60.h,
-      child: Row(
-        children: [
-          // Time label
-          SizedBox(
-            width: 40.w,
-            child: Padding(
-              padding: EdgeInsets.only(left: 16.w),
-              child: AppText(
-                '${hour}h',
-                textType: AppTextType.custom,
-                fontSize: 12,
-                color: const Color(0xFF9CA3AF),
+                  // Timeline: time labels + day columns with task blocks
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Time labels
+                      SizedBox(
+                        width: 40.w,
+                        height: _weekTimelineHeight.h,
+                        child: Column(
+                          children: List.generate(
+                            _weekEndHour - _weekStartHour + 1,
+                            (i) => SizedBox(
+                              height: _weekPixelsPerHour.h,
+                              child: Padding(
+                                padding: EdgeInsets.only(left: 16.w, top: 2.h),
+                                child: AppText(
+                                  '${_weekStartHour + i}h',
+                                  textType: AppTextType.custom,
+                                  fontSize: 12,
+                                  color: const Color(0xFF9CA3AF),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Day columns with task blocks
+                      ...days.map((day) => _buildWeekDayColumn(day)),
+                    ],
+                  ),
+                ],
               ),
             ),
+          );
+  }
+
+  Widget _buildWeekDayColumn(DateTime day) {
+    final tasks = _weekTasksForDay(day);
+    return GestureDetector(
+      onTap: () => _onWeekDayTapped(day),
+      child: SizedBox(
+        width: _weekDayWidth.w,
+        height: _weekTimelineHeight.h,
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(
+              left: BorderSide(color: const Color(0xFFE5E7EB), width: 0.5),
+            ),
           ),
-
-          // Grid cells
-          ...days.map((day) {
-            final tasksForCell = _tasks.where((task) {
-              return task.startTime.day == day.day &&
-                  task.startTime.month == day.month &&
-                  task.startTime.hour >= hour &&
-                  task.startTime.hour < hour + 2;
-            }).toList();
-
-            return Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  border: Border(
-                    top: BorderSide(color: const Color(0xFFE5E7EB), width: 0.5),
-                    left: BorderSide(color: const Color(0xFFE5E7EB), width: 0.5),
+          child: Stack(
+            children: [
+              // Hour lines
+              ...List.generate(
+                _weekEndHour - _weekStartHour + 1,
+                (i) => Positioned(
+                  top: (i * _weekPixelsPerHour).h,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    height: 1,
+                    color: const Color(0xFFE5E7EB),
                   ),
                 ),
-                child: tasksForCell.isEmpty
-                    ? const SizedBox.shrink()
-                    : _buildWeekTaskCell(tasksForCell.first),
               ),
-            );
-          }),
-        ],
+              // Task blocks
+              ...tasks.map((task) {
+                final minutesFromStart = (task.startTime.hour - _weekStartHour) * 60 + task.startTime.minute;
+                final durationMinutes = task.endTime.difference(task.startTime).inMinutes;
+                final top = minutesFromStart * (_weekPixelsPerHour / 60);
+                final height = durationMinutes * (_weekPixelsPerHour / 60);
+                return Positioned(
+                  top: top.h,
+                  left: 2.w,
+                  right: 2.w,
+                  height: height.h,
+                  child: _buildWeekTaskBlock(task),
+                );
+              }),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildWeekTaskCell(ScheduleTask task) {
+  Widget _buildWeekTaskBlock(ScheduleTask task) {
     return Container(
-      margin: EdgeInsets.all(2.w),
-      padding: EdgeInsets.all(4.w),
+      padding: EdgeInsets.all(6.w),
       decoration: BoxDecoration(
         color: task.color,
-        borderRadius: BorderRadius.circular(6.r),
+        borderRadius: BorderRadius.circular(8.r),
       ),
       child: Text(
-        task.title.split('\n').first,
+        task.title,
         style: TextStyle(
           fontSize: 10.sp,
           fontWeight: FontWeight.w500,
           color: const Color(0xFF1F2937),
         ),
-        maxLines: 2,
+        maxLines: 3,
         overflow: TextOverflow.ellipsis,
       ),
     );
@@ -685,10 +1025,89 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     );
   }
 
+  static const Color _monthDotColor = Color(0xFF6366F1);
+  static const double _monthDotSize = 4.0;
+
+  Widget _buildMonthDayCell(DateTime day, {bool selected = false, bool isToday = false}) {
+    final dateStr = DateFormat('yyyy-MM-dd').format(day);
+    final count = _monthDateCounts[dateStr] ?? 0;
+
+    Widget content = Column(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          '${day.day}',
+          style: TextStyle(
+            fontSize: 14.sp,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+            color: isToday ? const Color(0xFF6366F1) : (selected ? const Color(0xFF6366F1) : const Color(0xFF1F2937)),
+          ),
+        ),
+        if (count > 0) ...[
+          SizedBox(height: 2.h),
+          if (count >= 4)
+            Container(
+              width: 12.w,
+              height: 2,
+              decoration: BoxDecoration(
+                color: _monthDotColor,
+                borderRadius: BorderRadius.circular(1),
+              ),
+            )
+          else
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(
+                count,
+                (_) => Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 1.w),
+                  child: Container(
+                    width: _monthDotSize.w,
+                    height: _monthDotSize.w,
+                    decoration: const BoxDecoration(
+                      color: _monthDotColor,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ],
+    );
+
+    if (selected) {
+      return Container(
+        margin: EdgeInsets.all(2.w),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: _monthDotColor, width: 2),
+        ),
+        alignment: Alignment.center,
+        child: content,
+      );
+    }
+    if (isToday) {
+      return Container(
+        margin: EdgeInsets.all(2.w),
+        decoration: const BoxDecoration(
+          color: Color(0xFFDBEAFE),
+          shape: BoxShape.circle,
+        ),
+        alignment: Alignment.center,
+        child: content,
+      );
+    }
+    return Center(child: content);
+  }
+
   Widget _buildMonthCalendar() {
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 16.w),
       child: TableCalendar(
+        key: ValueKey('month_$_monthCountsVersion'),
         firstDay: DateTime.utc(2020, 1, 1),
         lastDay: DateTime.utc(2030, 12, 31),
         focusedDay: _focusedDate,
@@ -698,6 +1117,11 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             _selectedDate = selectedDay;
             _focusedDate = focusedDay;
           });
+          _fetchTasksForSelectedDayInMonth(selectedDay);
+        },
+        onPageChanged: (focusedDay) {
+          setState(() => _focusedDate = focusedDay);
+          _fetchTasksCountForMonth(focusedDay);
         },
         calendarFormat: CalendarFormat.month,
         startingDayOfWeek: StartingDayOfWeek.monday,
@@ -769,27 +1193,10 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           ),
         ),
         calendarBuilders: CalendarBuilders(
-          markerBuilder: (context, date, events) {
-            final hasTasks = _tasks.any((task) =>
-                task.startTime.day == date.day &&
-                task.startTime.month == date.month &&
-                task.startTime.year == date.year);
-
-            if (hasTasks) {
-              return Positioned(
-                bottom: 4,
-                child: Container(
-                  width: 6.w,
-                  height: 6.w,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF6366F1),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              );
-            }
-            return null;
-          },
+          defaultBuilder: (context, day, focusedDay) => _buildMonthDayCell(day, selected: false),
+          selectedBuilder: (context, day, focusedDay) => _buildMonthDayCell(day, selected: true),
+          todayBuilder: (context, day, focusedDay) => _buildMonthDayCell(day, selected: isSameDay(day, _selectedDate), isToday: true),
+          markerBuilder: (context, date, events) => const SizedBox.shrink(),
         ),
       ),
     );
@@ -805,22 +1212,38 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             'Tasks on ${DateFormat('MMM d').format(_selectedDate)}',
             textType: AppTextType.custom,
             fontSize: 18,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w500,
             color: const Color(0xFF1F2937),
           ),
         ),
-
         Expanded(
-          child: ListView.builder(
-            padding: EdgeInsets.symmetric(horizontal: 16.w),
-            itemCount: _tasksForSelectedDay.length,
-            itemBuilder: (context, index) {
-              return _buildMonthTaskItem(_tasksForSelectedDay[index]);
-            },
-          ),
+          child: _monthDayLoading
+              ? const Center(child: CircularProgressIndicator(color: Color(0xFF6366F1),))
+              : ListView.builder(
+                  padding: EdgeInsets.symmetric(horizontal: 16.w),
+                  itemCount: _tasksForSelectedDay.length,
+                  itemBuilder: (context, index) {
+                    return _buildMonthTaskItem(_tasksForSelectedDay[index]);
+                  },
+                ),
         ),
       ],
     );
+  }
+
+  /// Bấm checkbox: gọi API updateTask với status DONE (đánh dấu xong) hoặc PENDING (bỏ xong).
+  Future<void> _toggleMonthTask(ScheduleTask task) async {
+    final bool wasCompleted = task.isCompleted;
+    final String newStatus = wasCompleted ? 'PENDING' : 'DONE';
+
+    setState(() => task.isCompleted = !task.isCompleted);
+
+    try {
+      await Api.instance.restClient.updateTask(task.id, {'status': newStatus});
+    } catch (e) {
+      if (mounted) setState(() => task.isCompleted = wasCompleted);
+      debugPrint('Error updating task status: $e');
+    }
   }
 
   Widget _buildMonthTaskItem(ScheduleTask task) {
@@ -844,19 +1267,15 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         children: [
           // Checkbox
           GestureDetector(
-            onTap: () => setState(() => task.isCompleted = !task.isCompleted),
+            onTap: () => _toggleMonthTask(task),
             child: Container(
               width: 24.w,
               height: 24.w,
               decoration: BoxDecoration(
-                color: task.isCompleted
-                    ? const Color(0xFF6366F1)
-                    : Colors.transparent,
+                color: task.isCompleted ? const Color(0xFF6366F1) : Colors.transparent,
                 borderRadius: BorderRadius.circular(6.r),
                 border: Border.all(
-                  color: task.isCompleted
-                      ? const Color(0xFF6366F1)
-                      : const Color(0xFFD1D5DB),
+                  color: task.isCompleted ? const Color(0xFF6366F1) : const Color(0xFFD1D5DB),
                   width: 2,
                 ),
               ),
@@ -882,12 +1301,8 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                   style: TextStyle(
                     fontSize: 16.sp,
                     fontWeight: FontWeight.w500,
-                    color: task.isCompleted
-                        ? const Color(0xFF9CA3AF)
-                        : const Color(0xFF1F2937),
-                    decoration: task.isCompleted
-                        ? TextDecoration.lineThrough
-                        : null,
+                    color: task.isCompleted ? const Color(0xFF9CA3AF) : const Color(0xFF1F2937),
+                    decoration: task.isCompleted ? TextDecoration.lineThrough : null,
                   ),
                 ),
                 SizedBox(height: 4.h),
@@ -895,36 +1310,10 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                   '${timeFormat.format(task.startTime)} - ${timeFormat.format(task.endTime)}',
                   style: TextStyle(
                     fontSize: 14.sp,
-                    color: task.isCompleted
-                        ? const Color(0xFFD1D5DB)
-                        : const Color(0xFF6B7280),
-                    decoration: task.isCompleted
-                        ? TextDecoration.lineThrough
-                        : null,
+                    color: task.isCompleted ? const Color(0xFFD1D5DB) : const Color(0xFF6B7280),
                   ),
                 ),
               ],
-            ),
-          ),
-
-          // Category tag
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
-            decoration: BoxDecoration(
-              color: task.category == 'Work'
-                  ? const Color(0xFFFEF3C7)
-                  : const Color(0xFFFCE7F3),
-              borderRadius: BorderRadius.circular(12.r),
-            ),
-            child: Text(
-              task.category ?? '',
-              style: TextStyle(
-                fontSize: 12.sp,
-                fontWeight: FontWeight.w500,
-                color: task.category == 'Work'
-                    ? const Color(0xFFD97706)
-                    : const Color(0xFFEC4899),
-              ),
             ),
           ),
         ],
@@ -937,6 +1326,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       _selectedDate = DateTime.now();
       _focusedDate = DateTime.now();
     });
+    if (_viewMode == 0) _fetchTasksForDay(_selectedDate);
   }
 }
 

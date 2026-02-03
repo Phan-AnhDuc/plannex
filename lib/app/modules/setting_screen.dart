@@ -249,6 +249,7 @@ class _SettingScreenState extends State<SettingScreen> {
               child: AppText(
                 title,
                 textType: AppTextType.s16w4,
+                fontWeight: FontWeight.w500,
                 color: const Color(0xFF1F2937),
               ),
             ),
@@ -256,6 +257,7 @@ class _SettingScreenState extends State<SettingScreen> {
               AppText(
                 value,
                 textType: AppTextType.s16w4,
+                fontWeight: FontWeight.w500,
                 color: const Color(0xFF6B7280),
               ),
               SizedBox(width: 8.w),
@@ -285,6 +287,7 @@ class _SettingScreenState extends State<SettingScreen> {
             child: AppText(
               title,
               textType: AppTextType.s16w4,
+              fontWeight: FontWeight.w500,
               color: const Color(0xFF1F2937),
             ),
           ),
@@ -317,6 +320,7 @@ class _SettingScreenState extends State<SettingScreen> {
           children: [
             AppText(
               title,
+              fontWeight: FontWeight.w500,
               textType: AppTextType.s16w4,
               color: color,
             ),
@@ -339,6 +343,7 @@ class _SettingScreenState extends State<SettingScreen> {
             child: AppText(
               title,
               textType: AppTextType.s16w4,
+              fontWeight: FontWeight.w500,
               color: const Color(0xFF1F2937),
             ),
           ),
@@ -489,8 +494,7 @@ class _SettingScreenState extends State<SettingScreen> {
               ),
               Divider(height: 1, color: const Color(0xFFE5E7EB)),
               ...options.map((option) {
-                final isSelected = option == currentValue ||
-                    currentValue.contains(option);
+                final isSelected = option == currentValue || currentValue.contains(option);
                 return InkWell(
                   onTap: () {
                     onSelected(option);
@@ -562,8 +566,7 @@ class _SettingScreenState extends State<SettingScreen> {
     if (picked != null) {
       final period = picked.hour >= 12 ? 'PM' : 'AM';
       final displayHour = picked.hourOfPeriod == 0 ? 12 : picked.hourOfPeriod;
-      final formattedTime =
-          '${displayHour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')} $period';
+      final formattedTime = '${displayHour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')} $period';
       onSelected(formattedTime);
     }
   }

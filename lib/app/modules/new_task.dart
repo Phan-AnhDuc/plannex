@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
+import 'package:day_night_time_picker/day_night_time_picker.dart';
 
 // Components
 import '../components/app_text.dart';
@@ -46,6 +47,10 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
     _descriptionController.dispose();
     _customDurationController.dispose();
     super.dispose();
+  }
+
+  void _unfocus() {
+    FocusScope.of(context).unfocus();
   }
 
   @override
@@ -391,50 +396,112 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
     return '$hour:$minute $period';
   }
 
+  ThemeData _datePickerTheme() {
+    const primaryColor = Color(0xFF6366F1);
+    const surfaceColor = Color(0xFFF8F9FC);
+    const textColor = Color(0xFF1F2937);
+    const secondaryColor = Color(0xFF6B7280);
+    return Theme.of(context).copyWith(
+      colorScheme: const ColorScheme.light(
+        primary: primaryColor,
+        onPrimary: Colors.white,
+        surface: surfaceColor,
+        onSurface: textColor,
+      ),
+      datePickerTheme: DatePickerThemeData(
+        backgroundColor: surfaceColor,
+        surfaceTintColor: Colors.transparent,
+        headerBackgroundColor: primaryColor,
+        headerForegroundColor: Colors.white,
+        headerHeadlineStyle: const TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
+        ),
+        headerHelpStyle: TextStyle(
+          fontSize: 14,
+          color: Colors.white.withOpacity(0.9),
+        ),
+        weekdayStyle: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          color: secondaryColor,
+        ),
+        dayStyle: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+          color: textColor,
+        ),
+        yearStyle: TextStyle(
+          fontSize: 14,
+          color: textColor,
+        ),
+        dayForegroundColor: const WidgetStatePropertyAll(textColor),
+        dayBackgroundColor: const WidgetStatePropertyAll(Colors.transparent),
+        todayForegroundColor: const WidgetStatePropertyAll(primaryColor),
+        todayBackgroundColor: WidgetStatePropertyAll(primaryColor.withOpacity(0.15)),
+        todayBorder: const BorderSide(color: primaryColor, width: 2),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        elevation: 8,
+      ),
+    );
+  }
+
   Future<void> _selectDate() async {
+    _unfocus();
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFF3B82F6),
-            ),
-          ),
-          child: child!,
-        );
-      },
+      builder: (context, child) => Theme(
+        data: _datePickerTheme(),
+        child: child!,
+      ),
     );
     if (picked != null && picked != _selectedDate) {
       setState(() {
         _selectedDate = picked;
       });
     }
+    if (mounted) _unfocus();
   }
 
   Future<void> _selectTime() async {
-    final TimeOfDay? picked = await showTimePicker(
-      context: context,
-      initialTime: _selectedTime ?? TimeOfDay.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFF3B82F6),
-            ),
-          ),
-          child: child!,
-        );
-      },
+    _unfocus();
+    final TimeOfDay initial = _selectedTime ?? TimeOfDay.now();
+    final Time initialTime = Time(
+      hour: initial.hour,
+      minute: initial.minute,
+      second: 0,
     );
-    if (picked != null) {
-      setState(() {
-        _selectedTime = picked;
-      });
-    }
+
+    if (!mounted) return;
+    Navigator.of(context).push(
+      showPicker(
+        context: context,
+        value: initialTime,
+        onChange: (Time time) {
+          setState(() {
+            _selectedTime = TimeOfDay(hour: time.hour, minute: time.minute);
+          });
+        },
+        onCancel: () => Navigator.of(context).pop(),
+        accentColor: const Color(0xFF6366F1),
+        unselectedColor: const Color(0xFF9CA3AF),
+        backgroundColor: const Color(0xFFF8F9FC),
+        borderRadius: 16,
+        elevation: 8,
+        okText: 'Ok',
+        cancelText: 'Cancel',
+        is24HrFormat: false,
+        minuteInterval: TimePickerInterval.FIVE,
+      ),
+    ).then((_) {
+      if (mounted) _unfocus();
+    });
   }
 
   String _getRepeatDisplayText() {
@@ -526,6 +593,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
   }
 
   Future<void> _selectRepeat() async {
+    _unfocus();
     final taskTitle = _titleController.text.isEmpty ? 'New Task' : _titleController.text;
     final taskDuration = _selectedDuration;
 
@@ -753,10 +821,13 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
           ),
         );
       },
-    );
+    ).then((_) {
+      if (mounted) _unfocus();
+    });
   }
 
   Future<void> _selectPriority() async {
+    _unfocus();
     const options = ['HIGH', 'MEDIUM', 'LOW'];
 
     showModalBottomSheet(
@@ -828,10 +899,13 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
           ),
         );
       },
-    );
+    ).then((_) {
+      if (mounted) _unfocus();
+    });
   }
 
   Future<void> _selectReminder() async {
+    _unfocus();
     const options = ['Off', '15m', '30m', '1h', '1.5h', '2h', 'Custom'];
 
     String tempSelected = _selectedReminderOption;
@@ -1009,6 +1083,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
         );
       },
     );
+    if (mounted) _unfocus();
   }
 
   Widget _buildRepeatOption(String text, {required bool isSelected, required VoidCallback onTap}) {
@@ -1053,6 +1128,8 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
   }
 
   void _showCustomRepeatSheet() {
+    _unfocus();
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1388,6 +1465,10 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
                                       initialDate: _customUntilDate ?? DateTime.now().add(const Duration(days: 30)),
                                       firstDate: DateTime.now(),
                                       lastDate: DateTime.now().add(const Duration(days: 3650)),
+                                      builder: (context, child) => Theme(
+                                        data: _datePickerTheme(),
+                                        child: child!,
+                                      ),
                                     );
                                     if (picked != null) {
                                       setModalState(() {
@@ -1521,7 +1602,9 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
           },
         );
       },
-    );
+    ).then((_) {
+      if (mounted) _unfocus();
+    });
   }
 
   Widget _buildRangeOption(
@@ -1613,7 +1696,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
     // Format date as yyyy-MM-dd
     final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
 
-    // Build startAt: combine date + time, format as ISO 8601 with timezone +07:00
+    // Build startAt: thời gian dạng HH:mm:ss (API dùng kèm field date)
     DateTime startDateTime;
     if (_selectedTime != null) {
       startDateTime = DateTime(
@@ -1631,7 +1714,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
         _selectedDate.day,
       );
     }
-    final startAtStr = DateFormat("yyyy-MM-dd'T'HH:mm:ss").format(startDateTime);
+    final startAtStr = DateFormat('HH:mm:ss').format(startDateTime);
 
     // Build repeat object
     Map<String, dynamic> repeatObj = {};

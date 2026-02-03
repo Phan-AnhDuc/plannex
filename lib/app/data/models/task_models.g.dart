@@ -30,6 +30,30 @@ Map<String, dynamic> _$RangeToJson(Range instance) => <String, dynamic>{
       'toDate': instance.toDate,
     };
 
+TasksCountResponse _$TasksCountResponseFromJson(Map<String, dynamic> json) =>
+    TasksCountResponse(
+      range: Range.fromJson(json['range'] as Map<String, dynamic>),
+      counts: (json['counts'] as List<dynamic>)
+          .map((e) => DateCount.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
+
+Map<String, dynamic> _$TasksCountResponseToJson(TasksCountResponse instance) =>
+    <String, dynamic>{
+      'range': instance.range,
+      'counts': instance.counts,
+    };
+
+DateCount _$DateCountFromJson(Map<String, dynamic> json) => DateCount(
+      date: json['date'] as String,
+      count: (json['count'] as num).toInt(),
+    );
+
+Map<String, dynamic> _$DateCountToJson(DateCount instance) => <String, dynamic>{
+      'date': instance.date,
+      'count': instance.count,
+    };
+
 Task _$TaskFromJson(Map<String, dynamic> json) => Task(
       cloudTaskId: json['cloudTaskId'] as String?,
       startAt: json['startAt'] as String,
@@ -54,6 +78,7 @@ Task _$TaskFromJson(Map<String, dynamic> json) => Task(
           : Repeat.fromJson(json['repeat'] as Map<String, dynamic>),
       isRecurringInstance: json['isRecurringInstance'] as bool?,
       baseDate: json['baseDate'] as String?,
+      priority: json['priority'] as String?,
     );
 
 Map<String, dynamic> _$TaskToJson(Task instance) => <String, dynamic>{
@@ -78,16 +103,49 @@ Map<String, dynamic> _$TaskToJson(Task instance) => <String, dynamic>{
       'repeat': instance.repeat,
       'isRecurringInstance': instance.isRecurringInstance,
       'baseDate': instance.baseDate,
+      'priority': instance.priority,
     };
 
 Repeat _$RepeatFromJson(Map<String, dynamic> json) => Repeat(
-      preset: json['preset'] as String?,
       type: json['type'] as String?,
-      custom: json['custom'],
+      preset: json['preset'] as String?,
+      custom: json['custom'] == null
+          ? null
+          : RepeatCustom.fromJson(json['custom'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$RepeatToJson(Repeat instance) => <String, dynamic>{
-      'preset': instance.preset,
       'type': instance.type,
+      'preset': instance.preset,
       'custom': instance.custom,
+    };
+
+RepeatCustom _$RepeatCustomFromJson(Map<String, dynamic> json) => RepeatCustom(
+      frequency: json['frequency'] as String,
+      interval: (json['interval'] as num).toInt(),
+      range: RepeatRange.fromJson(json['range'] as Map<String, dynamic>),
+      weekdays: (json['weekdays'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
+    );
+
+Map<String, dynamic> _$RepeatCustomToJson(RepeatCustom instance) =>
+    <String, dynamic>{
+      'frequency': instance.frequency,
+      'interval': instance.interval,
+      'range': instance.range,
+      'weekdays': instance.weekdays,
+    };
+
+RepeatRange _$RepeatRangeFromJson(Map<String, dynamic> json) => RepeatRange(
+      mode: json['mode'] as String,
+      count: (json['count'] as num?)?.toInt(),
+      untilDate: json['untilDate'] as String?,
+    );
+
+Map<String, dynamic> _$RepeatRangeToJson(RepeatRange instance) =>
+    <String, dynamic>{
+      'mode': instance.mode,
+      'count': instance.count,
+      'untilDate': instance.untilDate,
     };
