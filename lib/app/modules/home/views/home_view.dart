@@ -1,11 +1,9 @@
-import 'package:app_base/translations/strings_enum.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 // Controller
+import '../../../../translations/strings_enum.dart';
 import '../../../routes/app_pages.dart';
-import '../../home_page.dart';
-import '../../home_today.dart';
 import '../../login_screen.dart';
 import '../controllers/home_controller.dart';
 
@@ -45,7 +43,8 @@ class HomeView extends GetView<HomeController> {
             ElevatedButton(
                 onPressed: () {
                   // controller.changeTheme();
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => LoginScreen()));
+                  Navigator.push(context,
+                      MaterialPageRoute(builder: (context) => LoginScreen()));
                 },
                 child: const Text('Change Theme')),
             ElevatedButton(
