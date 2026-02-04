@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:flutter_easyloading/flutter_easyloading.dart';
 
 // Components
 import '../components/app_text.dart';
@@ -159,6 +161,7 @@ class _HomeTodayScreenState extends HomeTodayScreenState {
         isCompleted: isCompleted,
         priority: task.priority,
         tags: tags?.isNotEmpty == true ? tags : null,
+        task: task, // Store full Task object for edit
       );
 
       if (!grouped.containsKey(groupTitle)) {
@@ -243,6 +246,8 @@ class _HomeTodayScreenState extends HomeTodayScreenState {
                         SizedBox(height: 8.h),
                         if (_isLoading && _taskGroups.isEmpty)
                           ..._buildShimmerTaskGroups()
+                        else if (_taskGroups.isEmpty)
+                          _buildEmptyState()
                         else
                           ..._taskGroups.map((group) => _buildTaskGroup(group)),
                       ],
@@ -384,6 +389,42 @@ class _HomeTodayScreenState extends HomeTodayScreenState {
     );
   }
 
+  /// Empty state khi không có task nào
+  Widget _buildEmptyState() {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 32.w, vertical: 120.h),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.inbox_outlined,
+              size: 80.sp,
+              color: const Color(0xFF9CA3AF),
+            ),
+            SizedBox(height: 24.h),
+            AppText(
+              'No tasks yet',
+              textType: AppTextType.custom,
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+              color: const Color(0xFF1F2937),
+            ),
+            SizedBox(height: 8.h),
+            AppText(
+              'Create your first task to get started',
+              textType: AppTextType.custom,
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+              color: const Color(0xFF6B7280),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   /// Shimmer-style placeholders while loading
   List<Widget> _buildShimmerTaskGroups() {
     // Show a couple of generic groups with placeholder items
@@ -476,101 +517,134 @@ class _HomeTodayScreenState extends HomeTodayScreenState {
     );
   }
 
-  /// Single task item
+  /// Single task item with swipe actions
   Widget _buildTaskItem(TaskItem task) {
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 6.h),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16.r),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+      child: Slidable(
+        key: ValueKey(task.id),
+        endActionPane: ActionPane(
+          motion: const DrawerMotion(),
+          extentRatio: 0.25,
+          children: [
+            // Edit action
+            SlidableAction(
+              onPressed: (_) => _editTask(task),
+              backgroundColor: const Color(0xFF9CA3AF),
+              foregroundColor: Colors.white,
+              icon: Icons.edit,
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(16.r),
+                bottomLeft: Radius.circular(16.r),
+              ),
+              flex: 1,
+            ),
+            // Delete action
+            SlidableAction(
+              onPressed: (_) => _deleteTask(task),
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+              icon: Icons.delete,
+              borderRadius: BorderRadius.only(
+                topRight: Radius.circular(16.r),
+                bottomRight: Radius.circular(16.r),
+              ),
+              flex: 1,
             ),
           ],
         ),
-        child: Padding(
-          padding: EdgeInsets.all(16.w),
-          child: Row(
-            children: [
-              // Checkbox
-              GestureDetector(
-                onTap: () => _toggleTask(task),
-                child: Container(
-                  width: 28.w,
-                  height: 28.w,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: task.isCompleted ? const Color(0xFF2563EB) : Colors.transparent,
-                    border: Border.all(
-                      color: task.isCompleted ? const Color(0xFF2563EB) : const Color(0xFFD1D5DB),
-                      width: 2,
-                    ),
-                  ),
-                  child: task.isCompleted
-                      ? Icon(
-                          Icons.check,
-                          size: 16.sp,
-                          color: Colors.white,
-                        )
-                      : null,
-                ),
-              ),
-
-              SizedBox(width: 12.w),
-
-              // Task content
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Title
-                    Text(
-                      task.title,
-                      style: TextStyle(
-                        fontSize: 16.sp,
-                        fontWeight: FontWeight.w500,
-                        color: task.isCompleted ? const Color(0xFF9CA3AF) : const Color(0xFF1F2937),
-                        decoration: task.isCompleted ? TextDecoration.lineThrough : null,
-                        decorationColor: const Color(0xFF9CA3AF),
-                      ),
-                    ),
-
-                    SizedBox(height: 4.h),
-
-                    // Priority, Time or tags
-                    Row(
-                      children: [
-                        if (task.priority != null) _buildPriorityTag(task.priority!),
-                        if (task.priority != null) SizedBox(width: 8.w),
-                        Builder(
-                          builder: (context) {
-                            final displayTime = _formatTime(
-                              task.startAt,
-                              task.durationMinutes,
-                              date: task.date,
-                            );
-                            if (displayTime == null) {
-                              return const SizedBox.shrink();
-                            }
-                            return AppText(
-                              displayTime,
-                              textType: AppTextType.s14w4,
-                              color: const Color(0xFF6B7280),
-                            );
-                          },
-                        ),
-                        if (task.tags != null && task.tags!.isNotEmpty)
-                          ...task.tags!.map((tag) => _buildTag(tag)),
-                      ],
-                    ),
-                  ],
-                ),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16.r),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.03),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
             ],
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(16.w),
+            child: Row(
+              children: [
+                // Checkbox
+                GestureDetector(
+                  onTap: () => _toggleTask(task),
+                  child: Container(
+                    width: 28.w,
+                    height: 28.w,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: task.isCompleted ? const Color(0xFF2563EB) : Colors.transparent,
+                      border: Border.all(
+                        color: task.isCompleted ? const Color(0xFF2563EB) : const Color(0xFFD1D5DB),
+                        width: 2,
+                      ),
+                    ),
+                    child: task.isCompleted
+                        ? Icon(
+                            Icons.check,
+                            size: 16.sp,
+                            color: Colors.white,
+                          )
+                        : null,
+                  ),
+                ),
+
+                SizedBox(width: 12.w),
+
+                // Task content
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Title
+                      Text(
+                        task.title,
+                        style: TextStyle(
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.w500,
+                          color: task.isCompleted ? const Color(0xFF9CA3AF) : const Color(0xFF1F2937),
+                          decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+                          decorationColor: const Color(0xFF9CA3AF),
+                        ),
+                      ),
+
+                      SizedBox(height: 4.h),
+
+                      // Priority, Time or tags
+                      Row(
+                        children: [
+                          if (task.priority != null) _buildPriorityTag(task.priority!),
+                          if (task.priority != null) SizedBox(width: 8.w),
+                          Builder(
+                            builder: (context) {
+                              final displayTime = _formatTime(
+                                task.startAt,
+                                task.durationMinutes,
+                                date: task.date,
+                              );
+                              if (displayTime == null) {
+                                return const SizedBox.shrink();
+                              }
+                              return AppText(
+                                displayTime,
+                                textType: AppTextType.s14w4,
+                                color: const Color(0xFF6B7280),
+                              );
+                            },
+                          ),
+                          if (task.tags != null && task.tags!.isNotEmpty)
+                            ...task.tags!.map((tag) => _buildTag(tag)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -787,6 +861,61 @@ class _HomeTodayScreenState extends HomeTodayScreenState {
   void _onVoice() {
     debugPrint('Voice');
   }
+
+  /// Edit task - navigate to NewTaskScreen with task data
+  void _editTask(TaskItem taskItem) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => NewTaskScreen(taskToEdit: taskItem.task),
+      ),
+    ).then((_) {
+      if (mounted) _getTasksRange();
+    });
+  }
+
+  /// Delete task - call deleteTask API
+  Future<void> _deleteTask(TaskItem taskItem) async {
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Task'),
+        content: Text('Are you sure you want to delete "${taskItem.title}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFFDC2626),
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      EasyLoading.show(status: 'Deleting task...');
+      await Api.instance.restClient.deleteTask(taskItem.id);
+      EasyLoading.dismiss();
+      
+      if (mounted) {
+        EasyLoading.showSuccess('Task deleted successfully!');
+        await _getTasksRange();
+      }
+    } catch (e) {
+      EasyLoading.dismiss();
+      if (mounted) {
+        EasyLoading.showError('Failed to delete task: ${e.toString()}');
+      }
+    }
+  }
 }
 
 // Data models
@@ -809,6 +938,7 @@ class TaskItem {
   bool isCompleted;
   final String? priority;
   final List<String>? tags;
+  final Task task; // Full Task object for edit
 
   TaskItem({
     required this.id,
@@ -819,5 +949,6 @@ class TaskItem {
     this.isCompleted = false,
     this.priority,
     this.tags,
+    required this.task,
   });
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
@@ -10,7 +11,7 @@ import 'package:http_parser/http_parser.dart';
 
 import '../contants/dio_client.dart';
 import '../contants/end_point.dart';
-import '../repository/repository.dart';
+import 'ai_gen_task.dart';
 import 'home_page.dart';
 
 /// AI Planner screen: natural language input → generate & optionally auto-schedule tasks.
@@ -65,13 +66,42 @@ class _AiPlanScreenState extends State<AiPlanScreen> {
     final text = _inputController.text.trim();
     if (text.isEmpty) return;
     try {
-      await Api.instance.restClient.plannerParse({
+      EasyLoading.show(status: 'Generating...');
+      final dio = dioClient(Endpoints.baseUrl);
+      final apiPath = Endpoints.plannerParse.startsWith('/')
+          ? Endpoints.plannerParse.replaceFirst('/', '')
+          : Endpoints.plannerParse;
+      final response = await dio.post(apiPath, data: {
         'inputText': text,
         'now': _nowIso8601Local(),
       });
-      // TODO: xử lý kết quả (vd: refresh danh sách task, điều hướng, hoặc hiển thị thông báo)
+      final data = response.data;
+      if (!mounted) {
+        EasyLoading.dismiss();
+        return;
+      }
+
+      if (data is Map<String, dynamic> && data['tasks'] is List) {
+        final List<dynamic> rawTasks = data['tasks'] as List<dynamic>;
+        final tasks = rawTasks
+            .whereType<Map<String, dynamic>>()
+            .toList(growable: false);
+
+        EasyLoading.dismiss();
+        if (tasks.isEmpty) return;
+
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => AiGenTaskScreen(
+              tasks: tasks,
+            ),
+          ),
+        );
+      } else {
+        EasyLoading.dismiss();
+      }
     } catch (e) {
-      // TODO: hiển thị lỗi (Snackbar / EasyLoading)
+      EasyLoading.dismiss();
     }
   }
 
@@ -87,6 +117,10 @@ class _AiPlanScreenState extends State<AiPlanScreen> {
           if (text.isNotEmpty) {
             final current = _inputController.text;
             _inputController.text = current.isEmpty ? text : '$current\n$text';
+            if (_autoScheduleAfterGenerating) {
+              // Sau khi ghi âm xong nếu bật auto-schedule thì tự gọi generate.
+              _onGenerateTasks();
+            }
           }
         },
       ),
@@ -180,6 +214,7 @@ class _AiPlanScreenState extends State<AiPlanScreen> {
                 fontSize: 15.sp,
                 color: _textDark,
                 height: 1.45,
+                fontWeight: FontWeight.w400,
               ),
               decoration: InputDecoration(
                 hintText: placeholder,
@@ -338,7 +373,13 @@ class _VoiceRecordDialogState extends State<_VoiceRecordDialog> with SingleTicke
 
   /// API nhận file âm thanh raw với các định dạng: MP3, WAV, AAC, FLAC, OGG/OPUS, M4A, MP4.
   static const Set<String> _supportedAudioExtensions = {
-    'mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a', 'mp4',
+    'mp3',
+    'wav',
+    'aac',
+    'flac',
+    'ogg',
+    'm4a',
+    'mp4',
   };
 
   /// MIME type cho từng định dạng (tránh lỗi "Unsupported MIME type: application/octet-stream" từ Gemini).
@@ -375,9 +416,7 @@ class _VoiceRecordDialogState extends State<_VoiceRecordDialog> with SingleTicke
           contentType: _audioMediaType(ext),
         ),
       });
-      final apiPath = Endpoints.voiceTranscribeGemini.startsWith('/')
-          ? Endpoints.voiceTranscribeGemini.replaceFirst('/', '')
-          : Endpoints.voiceTranscribeGemini;
+      final apiPath = Endpoints.voiceTranscribeGemini.startsWith('/') ? Endpoints.voiceTranscribeGemini.replaceFirst('/', '') : Endpoints.voiceTranscribeGemini;
       final response = await dio.post(apiPath, data: formData);
       if (!mounted) return;
       final data = response.data;
@@ -427,9 +466,7 @@ class _VoiceRecordDialogState extends State<_VoiceRecordDialog> with SingleTicke
             children: [
               SizedBox(
                 height: _contentHeight,
-                child: _state == _VoiceDialogState.listening
-                    ? _buildListeningContent()
-                    : _buildTranscribingContent(),
+                child: _state == _VoiceDialogState.listening ? _buildListeningContent() : _buildTranscribingContent(),
               ),
               SizedBox(height: 24.h),
               _buildButtons(),
@@ -465,8 +502,7 @@ class _VoiceRecordDialogState extends State<_VoiceRecordDialog> with SingleTicke
                           height: 64.w * scale,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            border: Border.all(
-                                color: _redMic.withValues(alpha: opacity * 0.6), width: 2),
+                            border: Border.all(color: _redMic.withValues(alpha: opacity * 0.6), width: 2),
                           ),
                         ),
                       ),

@@ -49,4 +49,10 @@ abstract class RestClientApi {
 
   @POST(Endpoints.plannerParse)    
   Future<void> plannerParse(@Body() Map<String, dynamic> body);
+
+  @DELETE(Endpoints.tasks + '{id}')
+  Future<void> deleteTask(@Path('id') String id);
+
+  @POST(Endpoints.tasksBulk)
+  Future<void> bulkCreateTasks(@Body() Map<String, dynamic> body);
 }

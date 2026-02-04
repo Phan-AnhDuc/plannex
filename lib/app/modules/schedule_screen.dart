@@ -19,7 +19,7 @@ class ScheduleScreen extends StatefulWidget {
 }
 
 class _ScheduleScreenState extends State<ScheduleScreen> {
-  // View mode: 0 = Day, 1 = Week, 2 = Month
+  // View mode: 0 = Day, 1 = Month
   int _viewMode = 0;
 
   // Selected date
@@ -30,19 +30,13 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   List<ScheduleTask> _dayTasks = [];
   bool _dayLoading = false;
 
-  // Sample tasks data (for Week view)
-  final List<ScheduleTask> _tasks = [];
-
   // Month view: tasks của ngày đang chọn (từ getTasksRange)
   List<ScheduleTask> _monthDayTasks = [];
   bool _monthDayLoading = false;
 
   List<ScheduleTask> get _tasksForSelectedDay {
     if (_viewMode == 0) return _dayTasks;
-    if (_viewMode == 2) return _monthDayTasks;
-    return _tasks.where((task) {
-      return task.startTime.year == _selectedDate.year && task.startTime.month == _selectedDate.month && task.startTime.day == _selectedDate.day;
-    }).toList();
+    return _monthDayTasks;
   }
 
   @override
@@ -240,11 +234,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
             // Content based on view mode
             Expanded(
-              child: _viewMode == 0
-                  ? _buildDayView()
-                  : _viewMode == 1
-                      ? _buildWeekView()
-                      : _buildMonthView(),
+              child: _viewMode == 0 ? _buildDayView() : _buildMonthView(),
             ),
           ],
         ),
@@ -320,8 +310,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         child: Row(
           children: [
             _buildViewModeTab('Day', 0),
-            _buildViewModeTab('Week', 1),
-            _buildViewModeTab('Month', 2),
+            _buildViewModeTab('Month', 1),
           ],
         ),
       ),
@@ -336,12 +325,10 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         onTap: () {
           setState(() {
             _viewMode = index;
-            if (index == 1) _focusedDate = DateTime.now();
           });
-          if (index == 1) {
-            _fetchTasksForWeek(DateTime.now());
-          }
-          if (index == 2) {
+          if (index == 0) {
+            _fetchTasksForDay(_selectedDate);
+          } else if (index == 1) {
             _fetchTasksCountForMonth(_focusedDate);
             _fetchTasksForSelectedDayInMonth(_selectedDate);
           }
@@ -664,7 +651,6 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     // Highlight: lavender nền, viền tím trái, đường cam dưới title. Không highlight: trắng, không viền.
     final bgColor = isHighlighted ? const Color(0xFFE0E4FA) : Colors.white;
     final leftBorderColor = isHighlighted ? const Color(0xFF6366F1) : null;
-    final showOrangeLine = isHighlighted;
     final timeColor = isHighlighted ? const Color(0xFFF59E0B) : const Color(0xFF6B7280);
 
     return Container(
@@ -725,7 +711,8 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     );
   }
 
-  // ============ WEEK VIEW ============
+  // ============ WEEK VIEW ============ (hiện không dùng trong UI, giữ lại cho tương lai)
+  // ignore: unused_element
   Widget _buildWeekView() {
     return Column(
       children: [

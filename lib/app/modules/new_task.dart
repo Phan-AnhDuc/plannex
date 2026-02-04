@@ -3,13 +3,17 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:day_night_time_picker/day_night_time_picker.dart';
+import 'package:table_calendar/table_calendar.dart';
 
 // Components
 import '../components/app_text.dart';
 import '../repository/repository.dart';
+import '../data/models/task_models.dart';
 
 class NewTaskScreen extends StatefulWidget {
-  const NewTaskScreen({super.key});
+  final Task? taskToEdit;
+
+  const NewTaskScreen({super.key, this.taskToEdit});
 
   @override
   State<NewTaskScreen> createState() => _NewTaskScreenState();
@@ -42,6 +46,164 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
   int _customForTimes = 7;
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.taskToEdit != null) {
+      _fillTaskData(widget.taskToEdit!);
+    }
+  }
+
+  void _fillTaskData(Task task) {
+    _titleController.text = task.title;
+    _descriptionController.text = task.description ?? '';
+    
+    // Parse date
+    if (task.date.isNotEmpty) {
+      try {
+        final dateParts = task.date.split('-');
+        if (dateParts.length == 3) {
+          _selectedDate = DateTime(
+            int.parse(dateParts[0]),
+            int.parse(dateParts[1]),
+            int.parse(dateParts[2]),
+          );
+        }
+      } catch (e) {
+        debugPrint('Error parsing date: $e');
+      }
+    }
+    
+    // Parse time
+    if (!task.allDay && task.startAt.isNotEmpty) {
+      try {
+        DateTime startDateTime;
+        if (task.startAt.length <= 8 && task.startAt.contains(':')) {
+          // Time only format
+          final timeParts = task.startAt.split(':');
+          if (timeParts.length >= 2 && task.date.isNotEmpty) {
+            final dateParts = task.date.split('-');
+            if (dateParts.length == 3) {
+              startDateTime = DateTime(
+                int.parse(dateParts[0]),
+                int.parse(dateParts[1]),
+                int.parse(dateParts[2]),
+                int.parse(timeParts[0]),
+                int.parse(timeParts[1]),
+                timeParts.length > 2 ? int.parse(timeParts[2]) : 0,
+              );
+            } else {
+              return;
+            }
+          } else {
+            return;
+          }
+        } else {
+          String normalized = task.startAt.trim();
+          if (normalized.contains(' ') && !normalized.contains('T')) {
+            normalized = normalized.replaceFirst(' ', 'T');
+          }
+          startDateTime = DateTime.parse(normalized);
+        }
+        _selectedTime = TimeOfDay(hour: startDateTime.hour, minute: startDateTime.minute);
+      } catch (e) {
+        debugPrint('Error parsing time: $e');
+      }
+    }
+    
+    // Parse duration
+    _customDurationMinutes = task.durationMinutes;
+    if (task.durationMinutes == 15) {
+      _selectedDuration = '15m';
+    } else if (task.durationMinutes == 30) {
+      _selectedDuration = '30m';
+    } else if (task.durationMinutes == 60) {
+      _selectedDuration = '1h';
+    } else if (task.durationMinutes == 90) {
+      _selectedDuration = '1.5h';
+    } else if (task.durationMinutes == 120) {
+      _selectedDuration = '2h';
+    } else {
+      _selectedDuration = 'Custom';
+      _customDurationController.text = task.durationMinutes.toString();
+    }
+    
+    // Parse priority
+    _selectedPriority = task.priority ?? 'MEDIUM';
+    
+    // Parse reminder
+    if (task.reminderOffsetMinutes != null) {
+      final offset = task.reminderOffsetMinutes!;
+      if (offset == 15) {
+        _selectedReminderOption = '15m';
+      } else if (offset == 30) {
+        _selectedReminderOption = '30m';
+      } else if (offset == 60) {
+        _selectedReminderOption = '1h';
+      } else if (offset == 90) {
+        _selectedReminderOption = '1.5h';
+      } else if (offset == 120) {
+        _selectedReminderOption = '2h';
+      } else {
+        _selectedReminderOption = 'Custom';
+        _customReminderMinutes = offset;
+      }
+      _reminderEnabled = true;
+    } else {
+      _selectedReminderOption = 'Off';
+      _reminderEnabled = false;
+    }
+    
+    // Parse repeat
+    if (task.repeat == null) {
+      _repeatOption = 'Does not repeat';
+    } else if (task.repeat!.type == 'PRESET') {
+      if (task.repeat!.preset == 'EVERY_DAY') {
+        _repeatOption = 'Every day';
+      } else if (task.repeat!.preset == 'WEEKDAYS') {
+        _repeatOption = 'Weekdays (Mon-Fri)';
+      } else {
+        _repeatOption = 'Every day'; // Default
+      }
+    } else if (task.repeat!.type == 'CUSTOM' && task.repeat!.custom != null) {
+      _repeatOption = 'Custom';
+      final custom = task.repeat!.custom!;
+      _customFrequency = custom.frequency == 'DAILY' ? 'Daily' : 'Weekly';
+      _customInterval = custom.interval;
+      _customIntervalUnit = custom.frequency == 'DAILY' ? 'day(s)' : 'week(s)';
+      
+      if (custom.range.mode == 'FOREVER') {
+        _customRange = 'Forever';
+      } else if (custom.range.mode == 'UNTIL_DATE') {
+        _customRange = 'Until date';
+        if (custom.range.untilDate != null) {
+          try {
+            final parts = custom.range.untilDate!.split('-');
+            if (parts.length == 3) {
+              _customUntilDate = DateTime(
+                int.parse(parts[0]),
+                int.parse(parts[1]),
+                int.parse(parts[2]),
+              );
+            }
+          } catch (e) {
+            debugPrint('Error parsing untilDate: $e');
+          }
+        }
+      } else if (custom.range.mode == 'COUNT') {
+        _customRange = 'For';
+        _customForTimes = custom.range.count ?? 7;
+      }
+      
+      if (custom.frequency == 'WEEKLY' && custom.weekdays != null) {
+        final dayNames = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+        for (int i = 0; i < dayNames.length; i++) {
+          _selectedDays[i] = custom.weekdays!.contains(dayNames[i]);
+        }
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
@@ -51,6 +213,13 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
 
   void _unfocus() {
     FocusScope.of(context).unfocus();
+  }
+
+  /// Gọi unfocus sau khi build xong frame (sau khi đóng bottom sheet), tránh focus nhảy về Description.
+  void _unfocusAfterOptionClosed() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _unfocus();
+    });
   }
 
   @override
@@ -65,7 +234,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: AppText(
-          'New Task',
+          widget.taskToEdit != null ? 'Edit Task' : 'New Task',
           textType: AppTextType.s17w7,
           color: const Color(0xFF1F2937),
           fontWeight: FontWeight.w600,
@@ -396,77 +565,30 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
     return '$hour:$minute $period';
   }
 
-  ThemeData _datePickerTheme() {
-    const primaryColor = Color(0xFF6366F1);
-    const surfaceColor = Color(0xFFF8F9FC);
-    const textColor = Color(0xFF1F2937);
-    const secondaryColor = Color(0xFF6B7280);
-    return Theme.of(context).copyWith(
-      colorScheme: const ColorScheme.light(
-        primary: primaryColor,
-        onPrimary: Colors.white,
-        surface: surfaceColor,
-        onSurface: textColor,
-      ),
-      datePickerTheme: DatePickerThemeData(
-        backgroundColor: surfaceColor,
-        surfaceTintColor: Colors.transparent,
-        headerBackgroundColor: primaryColor,
-        headerForegroundColor: Colors.white,
-        headerHeadlineStyle: const TextStyle(
-          fontSize: 24,
-          fontWeight: FontWeight.w600,
-          color: Colors.white,
-        ),
-        headerHelpStyle: TextStyle(
-          fontSize: 14,
-          color: Colors.white.withOpacity(0.9),
-        ),
-        weekdayStyle: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
-          color: secondaryColor,
-        ),
-        dayStyle: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-          color: textColor,
-        ),
-        yearStyle: TextStyle(
-          fontSize: 14,
-          color: textColor,
-        ),
-        dayForegroundColor: const WidgetStatePropertyAll(textColor),
-        dayBackgroundColor: const WidgetStatePropertyAll(Colors.transparent),
-        todayForegroundColor: const WidgetStatePropertyAll(primaryColor),
-        todayBackgroundColor: WidgetStatePropertyAll(primaryColor.withOpacity(0.15)),
-        todayBorder: const BorderSide(color: primaryColor, width: 2),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        elevation: 8,
-      ),
-    );
-  }
-
   Future<void> _selectDate() async {
     _unfocus();
-    final DateTime? picked = await showDatePicker(
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final selectedDateOnly = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
+    final initialPicked = selectedDateOnly.isBefore(today) ? today : selectedDateOnly;
+
+    if (!mounted) return;
+    final DateTime? picked = await showModalBottomSheet<DateTime>(
       context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-      builder: (context, child) => Theme(
-        data: _datePickerTheme(),
-        child: child!,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _DatePickerBottomSheet(
+        initialDate: initialPicked,
+        today: today,
+        lastDate: DateTime(now.year + 1, now.month, now.day),
       ),
     );
-    if (picked != null && picked != _selectedDate) {
+    if (picked != null) {
       setState(() {
         _selectedDate = picked;
       });
     }
-    if (mounted) _unfocus();
+    if (mounted) _unfocusAfterOptionClosed();
   }
 
   Future<void> _selectTime() async {
@@ -479,14 +601,14 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
     );
 
     if (!mounted) return;
+    
+    Time? finalTime;
     Navigator.of(context).push(
       showPicker(
         context: context,
         value: initialTime,
         onChange: (Time time) {
-          setState(() {
-            _selectedTime = TimeOfDay(hour: time.hour, minute: time.minute);
-          });
+          finalTime = time;
         },
         onCancel: () => Navigator.of(context).pop(),
         accentColor: const Color(0xFF6366F1),
@@ -498,9 +620,15 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
         cancelText: 'Cancel',
         is24HrFormat: false,
         minuteInterval: TimePickerInterval.FIVE,
+        iosStylePicker: true, // Cho phép nhập số trực tiếp (iOS style)
       ),
     ).then((_) {
-      if (mounted) _unfocus();
+      if (finalTime != null && mounted) {
+        setState(() {
+          _selectedTime = TimeOfDay(hour: finalTime!.hour, minute: finalTime!.minute);
+        });
+      }
+      if (mounted) _unfocusAfterOptionClosed();
     });
   }
 
@@ -822,7 +950,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
         );
       },
     ).then((_) {
-      if (mounted) _unfocus();
+      if (mounted) _unfocusAfterOptionClosed();
     });
   }
 
@@ -900,7 +1028,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
         );
       },
     ).then((_) {
-      if (mounted) _unfocus();
+      if (mounted) _unfocusAfterOptionClosed();
     });
   }
 
@@ -1083,7 +1211,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
         );
       },
     );
-    if (mounted) _unfocus();
+    if (mounted) _unfocusAfterOptionClosed();
   }
 
   Widget _buildRepeatOption(String text, {required bool isSelected, required VoidCallback onTap}) {
@@ -1460,14 +1588,18 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
                                 SizedBox(width: 8.w),
                                 GestureDetector(
                                   onTap: () async {
-                                    final DateTime? picked = await showDatePicker(
+                                    final now = DateTime.now();
+                                    final today = DateTime(now.year, now.month, now.day);
+                                    final lastDate = today.add(const Duration(days: 3650));
+                                    final initial = _customUntilDate ?? today.add(const Duration(days: 30));
+                                    final DateTime? picked = await showModalBottomSheet<DateTime>(
                                       context: context,
-                                      initialDate: _customUntilDate ?? DateTime.now().add(const Duration(days: 30)),
-                                      firstDate: DateTime.now(),
-                                      lastDate: DateTime.now().add(const Duration(days: 3650)),
-                                      builder: (context, child) => Theme(
-                                        data: _datePickerTheme(),
-                                        child: child!,
+                                      isScrollControlled: true,
+                                      backgroundColor: Colors.transparent,
+                                      builder: (ctx) => _DatePickerBottomSheet(
+                                        initialDate: initial.isBefore(today) ? today : initial,
+                                        today: today,
+                                        lastDate: lastDate,
                                       ),
                                     );
                                     if (picked != null) {
@@ -1603,7 +1735,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
         );
       },
     ).then((_) {
-      if (mounted) _unfocus();
+      if (mounted) _unfocusAfterOptionClosed();
     });
   }
 
@@ -1797,7 +1929,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
     return body;
   }
 
-  // Create task API call
+  // Create or update task API call
   Future<void> _createTask() async {
     // Validate title
     if (_titleController.text.trim().isEmpty) {
@@ -1806,25 +1938,197 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
     }
 
     try {
-      EasyLoading.show(status: 'Creating task...');
+      final isEditMode = widget.taskToEdit != null;
+      EasyLoading.show(status: isEditMode ? 'Updating task...' : 'Creating task...');
 
       final body = _buildRequestBody();
       
       print('Request body: $body'); // Debug print
 
-      await Api.instance.restClient.createTask(body);
+      if (isEditMode) {
+        // Call updateTask API for update
+        await Api.instance.restClient.updateTask(widget.taskToEdit!.id, body);
+      } else {
+        await Api.instance.restClient.createTask(body);
+      }
 
       EasyLoading.dismiss();
       
       if (mounted) {
-        EasyLoading.showSuccess('Task created successfully!');
+        EasyLoading.showSuccess(isEditMode ? 'Task updated successfully!' : 'Task created successfully!');
         Navigator.pop(context);
       }
     } catch (e) {
       EasyLoading.dismiss();
       if (mounted) {
-        EasyLoading.showError('Failed to create task: ${e.toString()}');
+        EasyLoading.showError('Failed to ${widget.taskToEdit != null ? 'update' : 'create'} task: ${e.toString()}');
       }
     }
   }
 }
+
+/// Bottom sheet dùng TableCalendar: chọn ngày luôn focus đúng ô được chọn.
+class _DatePickerBottomSheet extends StatefulWidget {
+  final DateTime initialDate;
+  final DateTime today;
+  final DateTime lastDate;
+
+  const _DatePickerBottomSheet({
+    required this.initialDate,
+    required this.today,
+    required this.lastDate,
+  });
+
+  @override
+  State<_DatePickerBottomSheet> createState() => _DatePickerBottomSheetState();
+}
+
+class _DatePickerBottomSheetState extends State<_DatePickerBottomSheet> {
+  late DateTime _pickedDate;
+  late DateTime _focusedDay;
+
+  @override
+  void initState() {
+    super.initState();
+    _pickedDate = widget.initialDate;
+    _focusedDay = widget.initialDate;
+  }
+
+  bool _isSelectable(DateTime day) {
+    final d = DateTime(day.year, day.month, day.day);
+    final t = DateTime(widget.today.year, widget.today.month, widget.today.day);
+    return !d.isBefore(t) && !d.isAfter(DateTime(widget.lastDate.year, widget.lastDate.month, widget.lastDate.day));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFFF8F9FC),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: EdgeInsets.only(
+        left: 16.w,
+        right: 16.w,
+        top: 16.h,
+        bottom: 16.h + MediaQuery.of(context).padding.bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Chọn ngày',
+                style: TextStyle(
+                  fontSize: 18.sp,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF1F2937),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, _pickedDate),
+                child: Text(
+                  'Xong',
+                  style: TextStyle(
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF6366F1),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8.h),
+          TableCalendar(
+            firstDay: widget.today,
+            lastDay: widget.lastDate,
+            focusedDay: _focusedDay,
+            selectedDayPredicate: (day) => isSameDay(_pickedDate, day),
+            enabledDayPredicate: _isSelectable,
+            onDaySelected: (selectedDay, focusedDay) {
+              setState(() {
+                _pickedDate = selectedDay;
+                _focusedDay = focusedDay;
+              });
+            },
+            onPageChanged: (focusedDay) {
+              setState(() => _focusedDay = focusedDay);
+            },
+            calendarFormat: CalendarFormat.month,
+            startingDayOfWeek: StartingDayOfWeek.monday,
+            headerStyle: HeaderStyle(
+              formatButtonVisible: false,
+              titleCentered: true,
+              leftChevronIcon: Icon(
+                Icons.chevron_left,
+                color: const Color(0xFF6B7280),
+                size: 24.sp,
+              ),
+              rightChevronIcon: Icon(
+                Icons.chevron_right,
+                color: const Color(0xFF6B7280),
+                size: 24.sp,
+              ),
+              titleTextStyle: TextStyle(
+                fontSize: 18.sp,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF1F2937),
+              ),
+            ),
+            daysOfWeekStyle: DaysOfWeekStyle(
+              weekdayStyle: TextStyle(
+                fontSize: 12.sp,
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF6B7280),
+              ),
+              weekendStyle: TextStyle(
+                fontSize: 12.sp,
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF6B7280),
+              ),
+            ),
+            calendarStyle: CalendarStyle(
+              todayDecoration: BoxDecoration(
+                color: const Color(0xFFDBEAFE),
+                shape: BoxShape.circle,
+              ),
+              todayTextStyle: TextStyle(
+                fontSize: 14.sp,
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF6366F1),
+              ),
+              selectedDecoration: BoxDecoration(
+                color: const Color(0xFF6366F1),
+                shape: BoxShape.circle,
+              ),
+              selectedTextStyle: TextStyle(
+                fontSize: 14.sp,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+              defaultTextStyle: TextStyle(
+                fontSize: 14.sp,
+                color: const Color(0xFF1F2937),
+              ),
+              weekendTextStyle: TextStyle(
+                fontSize: 14.sp,
+                color: const Color(0xFF1F2937),
+              ),
+              disabledTextStyle: TextStyle(
+                fontSize: 14.sp,
+                color: const Color(0xFF9CA3AF),
+              ),
+              outsideTextStyle: TextStyle(
+                fontSize: 14.sp,
+                color: const Color(0xFF9CA3AF),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+

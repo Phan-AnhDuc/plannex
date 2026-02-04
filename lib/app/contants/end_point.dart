@@ -6,4 +6,5 @@ class Endpoints {
   static const String login = '/users/login';
   static const String voiceTranscribeGemini = '/voice/transcribe-gemini';
   static const String plannerParse = '/planner/parse';
+  static const String tasksBulk = '/tasks/bulk';
 }
