@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 // Screens
+import 'ai_plan.dart';
 import 'home_today.dart';
 import 'schedule_screen.dart';
 import 'setting_screen.dart';
@@ -29,7 +30,7 @@ class _HomePageState extends State<HomePage> {
   List<Widget> get _pages => [
     HomeTodayScreen(key: _homeTodayKey, onTabChanged: _onTabChanged),
     ScheduleScreen(onTabChanged: _onTabChanged),
-    _PlaceholderScreen(title: 'AI Planner', onTabChanged: _onTabChanged, currentIndex: 2),
+    AiPlanScreen(onTabChanged: _onTabChanged,),
     SettingScreen(onTabChanged: _onTabChanged),
   ];
 
@@ -47,40 +48,6 @@ class _HomePageState extends State<HomePage> {
       body: IndexedStack(
         index: _currentIndex,
         children: _pages,
-      ),
-    );
-  }
-}
-
-// Placeholder screen for other tabs
-class _PlaceholderScreen extends StatelessWidget {
-  final String title;
-  final Function(int) onTabChanged;
-  final int currentIndex;
-
-  const _PlaceholderScreen({
-    required this.title,
-    required this.onTabChanged,
-    required this.currentIndex,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FC),
-      body: Center(
-        child: Text(
-          title,
-          style: TextStyle(
-            fontSize: 24.sp,
-            fontWeight: FontWeight.bold,
-            color: const Color(0xFF1F2937),
-          ),
-        ),
-      ),
-      bottomNavigationBar: AppBottomNavBar(
-        currentIndex: currentIndex,
-        onTabChanged: onTabChanged,
       ),
     );
   }

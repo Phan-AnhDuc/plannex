@@ -4,4 +4,6 @@ class Endpoints {
   static const String tasksRange = '/tasks/range';
   static const String tasksCount = '/tasks/count';
   static const String login = '/users/login';
+  static const String voiceTranscribeGemini = '/voice/transcribe-gemini';
+  static const String plannerParse = '/planner/parse';
 }

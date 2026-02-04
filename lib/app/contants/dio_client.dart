@@ -27,8 +27,10 @@ dynamic requestInterceptor(RequestOptions request, RequestInterceptorHandler han
   bool skipAuth = request.extra['skipAuth'] == true;
 
   if (!skipAuth) {
-    //add token to header
-    request.headers.addAll({'Content-Type': 'application/json'});
+    // JSON only when not sending multipart (e.g. voice file upload)
+    if (request.data is! FormData) {
+      request.headers.addAll({'Content-Type': 'application/json'});
+    }
 
     await FirebaseAuth.instance.currentUser?.uid;
 

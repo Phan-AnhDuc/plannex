@@ -1,4 +1,4 @@
-name: app_base
+name: plannex
 description: "A new Flutter project."
 publish_to: 'none' # Remove this line if you wish to 
 
@@ -25,6 +25,8 @@ dependencies:
   firebase_auth: ^5.3.4
   google_sign_in: ^6.2.2
   logger: ^2.6.2
+  record: ^6.2.0
+  path_provider: ^2.1.2
   retrofit: ^4.4.2
   json_annotation: ^4.9.0
 dev_dependencies:

@@ -43,4 +43,10 @@ abstract class RestClientApi {
 
   @POST(Endpoints.login)
   Future<void> login( @Query('timezone') String timezone);
+
+  @POST(Endpoints.voiceTranscribeGemini)
+  Future<void> voiceTranscribeGemini(@Body() Map<String, dynamic> body);
+
+  @POST(Endpoints.plannerParse)    
+  Future<void> plannerParse(@Body() Map<String, dynamic> body);
 }
