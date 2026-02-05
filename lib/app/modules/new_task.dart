@@ -225,6 +225,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      bottomNavigationBar: _buildSaveButton(),
       backgroundColor: const Color(0xFFF3F4F6),
       appBar: AppBar(
         backgroundColor: Colors.white,
@@ -333,7 +334,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
               SizedBox(height: 24.h),
 
               // Save Button
-              _buildSaveButton(),
+              
               SizedBox(height: 32.h),
             ],
           ),
@@ -525,7 +526,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
   }
 
   Widget _buildSaveButton() {
-    return SizedBox(
+    return Padding(padding: EdgeInsets.fromLTRB(16.w, 0, 16.w, 16.h),child: SizedBox(
       width: double.infinity,
       child: ElevatedButton(
         onPressed: _createTask,
@@ -543,7 +544,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
           color: Colors.white,
         ),
       ),
-    );
+    ),);
   }
 
   String _formatDate(DateTime date) {
@@ -619,7 +620,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
         okText: 'Ok',
         cancelText: 'Cancel',
         is24HrFormat: false,
-        minuteInterval: TimePickerInterval.FIVE,
+        minuteInterval: TimePickerInterval.ONE,
         iosStylePicker: true, // Cho phép nhập số trực tiếp (iOS style)
       ),
     ).then((_) {

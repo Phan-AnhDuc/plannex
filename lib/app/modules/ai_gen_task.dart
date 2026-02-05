@@ -3,6 +3,8 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
 
 import '../repository/repository.dart';
+import 'home_page.dart';
+import 'home_today.dart';
 
 /// Screen hiển thị danh sách task gợi ý từ AI và cho phép chọn để auto-schedule.
 class AiGenTaskScreen extends StatefulWidget {
@@ -316,7 +318,6 @@ class _AiGenTaskScreenState extends State<AiGenTaskScreen> {
     return '$minutes minutes before';
   }
 
-  /// Build body cho bulk create: { "tasks": [ { title, date, startAt, priority, ... } ] }
   List<Map<String, dynamic>> _buildSelectedTasksBody() {
     final list = <Map<String, dynamic>>[];
     for (int i = 0; i < widget.tasks.length; i++) {
@@ -365,9 +366,11 @@ class _AiGenTaskScreenState extends State<AiGenTaskScreen> {
       if (!mounted) return;
       setState(() => _submitting = false);
       EasyLoading.showSuccess('Tasks added successfully!');
-      // Back về màn có home_today (pop 2 lần: AiGenTask -> AiPlan -> HomePage với tab Today)
-      Navigator.of(context).pop();
-      Navigator.of(context).pop();
+      // Điều hướng về HomePage với tab Today (HomeTodayScreen)
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const HomePage(initialIndex: 0)),
+        (route) => false,
+      );
     } catch (e) {
       if (mounted) {
         setState(() => _submitting = false);

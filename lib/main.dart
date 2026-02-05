@@ -4,12 +4,14 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 import 'app/data/app_shared_pref.dart';
 import 'app/modules/home_page.dart';
 import 'app/modules/login_screen.dart';
 import 'theme/app_theme.dart';
 import 'translations/localization_service.dart';
+import 'app/services/notification_service.dart';
 
 
 
@@ -38,6 +40,13 @@ Future<void> main() async {
   
   // init shared preference
   await AppSharedPref.init();
+
+  // Init local notifications
+  await NotificationService.instance.init();
+  await NotificationService.instance.requestPermissions();
+
+  // Setup FCM để nhận và hiển thị thông báo khi app đang mở
+  await _setupFirebaseMessaging();
 
   final hasToken =
       AppSharedPref.getToken() != null && AppSharedPref.getToken()!.isNotEmpty;
@@ -98,4 +107,27 @@ Future<void> main() async {
 
   // Config loading indicator
   configLoading();
+}
+
+Future<void> _setupFirebaseMessaging() async {
+  final messaging = FirebaseMessaging.instance;
+
+  // Xin quyền hiển thị push (đặc biệt trên iOS / web)
+  await messaging.requestPermission(
+    alert: true,
+    badge: true,
+    sound: true,
+  );
+
+  // Nhận message khi app đang mở và show local notification
+  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+    final notification = message.notification;
+    if (notification == null) return;
+
+    NotificationService.instance.showSimpleNotification(
+      id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      title: notification.title ?? 'Plannex',
+      body: notification.body ?? '',
+    );
+  });
 }

@@ -2,7 +2,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:get/get.dart';
+import 'dart:io';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 // Components
 import '../components/app_text.dart';
@@ -692,33 +695,60 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   /// Lấy timezone local dạng IANA (ví dụ Asia/Ho_Chi_Minh).
-  String _getLocalTimezone() {
-    final offsetHours = DateTime.now().timeZoneOffset.inHours;
-    const ianaByOffset = {
-      7: 'Asia/Ho_Chi_Minh',
-      8: 'Asia/Singapore',
-      9: 'Asia/Tokyo',
-      0: 'UTC',
-      -5: 'America/New_York',
-      -8: 'America/Los_Angeles',
-    };
-    return ianaByOffset[offsetHours] ?? 'UTC';
+  Future<String> getLocalTimezone() async {
+    try {
+      final timezone = await FlutterTimezone.getLocalTimezone();
+      print('========timezone==========$timezone');
+      print('========timezone.identifier==========${timezone.identifier}');
+      print('========timezone.localizedName==========${timezone.localizedName}');
+      print('========timezone.localizedName.name==========${timezone.localizedName?.name}');
+      print('========timezone.localizedName.locale==========${timezone.localizedName?.locale}');
+      return timezone.identifier;
+    } catch (e) {
+      return 'UTC';
+    }
   }
 
   /// Sau khi đăng nhập thành công: lưu token (nếu cần), gọi API login với timezone, rồi vào Home.
   Future<void> _onLoginSuccess(User user) async {
     final token = await user.getIdToken();
+
     if (token != null && token.isNotEmpty) {
       await AppSharedPref.setToken(token);
     }
-    final timezone = _getLocalTimezone();
+    final timezone = await getLocalTimezone();
+
+    Map<String, dynamic> profile = const <String, dynamic>{};
     try {
-      await Api.instance.restClient.login(timezone);
-    } catch (_) {
-      // Vẫn vào Home dù API login lỗi (mạng, backend...)
-    }
+      profile = await Api.instance.restClient.login(timezone);
+      if (profile.isNotEmpty) {
+        await AppSharedPref.setUserProfile(profile);
+      }
+    } catch (_) {}
+
+    // Sau khi login backend xong, nếu user đã cho phép noti thì lấy FCM token trực tiếp và đăng ký thiết bị
+    try {
+      final messaging = FirebaseMessaging.instance;
+      final fcmToken = await messaging.getToken();
+      if (fcmToken != null && fcmToken.isNotEmpty) {
+        final platform = _getPlatformName();
+        await Api.instance.restClient.notificationsDevice({
+          'token': fcmToken,
+          'platform': platform,
+        });
+      }
+    } catch (_) {}
     if (!mounted) return;
     _navigateToHome();
+  }
+
+  String _getPlatformName() {
+    if (Platform.isAndroid) return 'android';
+    if (Platform.isIOS) return 'ios';
+    if (Platform.isMacOS) return 'macos';
+    if (Platform.isWindows) return 'windows';
+    if (Platform.isLinux) return 'linux';
+    return 'unknown';
   }
 
   void _navigateToHome() {

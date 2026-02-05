@@ -7,4 +7,5 @@ class Endpoints {
   static const String voiceTranscribeGemini = '/voice/transcribe-gemini';
   static const String plannerParse = '/planner/parse';
   static const String tasksBulk = '/tasks/bulk';
+  static const String notificationsDevice = '/notifications/device';
 }

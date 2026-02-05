@@ -28,13 +28,14 @@ dependencies:
   logger: ^2.6.2
   record: ^6.2.0
   path_provider: ^2.1.2
+  firebase_messaging: ^15.2.10
   retrofit: ^4.4.2
   json_annotation: ^4.9.0
   flutter_slidable: ^3.1.1
+  flutter_local_notifications: ^19.5.0
+  flutter_timezone: ^5.0.1
 dev_dependencies:
   build_runner: ^2.4.6
-  # Flutter 3.29.3 (Dart 3.7.x) không dùng được flutter_native_splash 2.4.7 (yêu cầu Dart >=3.8.0).
-  # Hạ xuống 2.4.6 cho compatible với SDK hiện tại.
   flutter_native_splash: ^2.4.6
   json_serializable: ^6.7.1
   retrofit_generator: ^7.0.8

@@ -42,7 +42,7 @@ abstract class RestClientApi {
   );
 
   @POST(Endpoints.login)
-  Future<void> login( @Query('timezone') String timezone);
+  Future<dynamic> login(@Query('timezone') String timezone);
 
   @POST(Endpoints.voiceTranscribeGemini)
   Future<void> voiceTranscribeGemini(@Body() Map<String, dynamic> body);
@@ -55,4 +55,7 @@ abstract class RestClientApi {
 
   @POST(Endpoints.tasksBulk)
   Future<void> bulkCreateTasks(@Body() Map<String, dynamic> body);
+
+  @POST(Endpoints.notificationsDevice)
+  Future<void> notificationsDevice(@Body() Map<String, dynamic> body);
 }
