@@ -8,4 +8,7 @@ class Endpoints {
   static const String plannerParse = '/planner/parse';
   static const String tasksBulk = '/tasks/bulk';
   static const String notificationsDevice = '/notifications/device';
+  static const String usersSettings = '/users/settings';
+  static const String usersMe = '/users/me';
+  static const String getTaskDetail = '/tasks/get_task';
 }

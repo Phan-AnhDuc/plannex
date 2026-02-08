@@ -10,6 +10,7 @@ import '../repository/repository.dart';
 import '../data/models/task_models.dart';
 import 'home_page.dart';
 import 'new_task.dart';
+import 'ai_plan.dart';
 
 class HomeTodayScreen extends StatefulWidget {
   final Function(int)? onTabChanged;
@@ -419,7 +420,6 @@ class _HomeTodayScreenState extends HomeTodayScreenState {
 
   /// Shimmer-style placeholders while loading
   List<Widget> _buildShimmerTaskGroups() {
-    // Show a couple of generic groups with placeholder items
     return [
       _buildShimmerGroup(),
       _buildShimmerGroup(),
@@ -1031,7 +1031,7 @@ class _HomeTodayScreenState extends HomeTodayScreenState {
     return Container(
       height: 56.h,
       decoration: BoxDecoration(
-        color: const Color(0xFFF3F4F6),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(28.r),
         boxShadow: [
           BoxShadow(
@@ -1044,26 +1044,31 @@ class _HomeTodayScreenState extends HomeTodayScreenState {
       child: Row(
         children: [
           // + Task button
-          Container(
-            margin: EdgeInsets.all(4.w),
-            child: ElevatedButton.icon(
-              onPressed: _onAddTask,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24.r),
-                ),
-                elevation: 0,
-                padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 12.h),
-              ),
-              icon: Icon(Icons.add, size: 20.sp),
-              label: Text(
-                'Task',
-                style: TextStyle(
-                  fontSize: 16.sp,
-                  fontWeight: FontWeight.w600,
-                ),
+
+          Expanded(
+            child: GestureDetector(
+              onTap: _onAddTask,
+              behavior: HitTestBehavior.opaque,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.add,
+                    size: 20.sp,
+                    color: const Color(0xFFD97706),
+                  ),
+                  SizedBox(width: 6.w),
+                  Text(
+                    'Task',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w500,
+                      color: const Color(0xFF6B7280),
+                      height: 1.2,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -1083,10 +1088,10 @@ class _HomeTodayScreenState extends HomeTodayScreenState {
                   ),
                   SizedBox(width: 6.w),
                   Text(
-                    'AI\ntext',
+                    'AI Text',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 12.sp,
+                      fontSize: 14.sp,
                       fontWeight: FontWeight.w500,
                       color: const Color(0xFF6B7280),
                       height: 1.2,
@@ -1158,11 +1163,21 @@ class _HomeTodayScreenState extends HomeTodayScreenState {
   }
 
   void _onAIText() {
-    debugPrint('AI text');
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AiPlanScreen(hideMicButton: true),
+      ),
+    );
   }
 
   void _onVoice() {
-    debugPrint('Voice');
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AiPlanScreen(autoStartVoice: true),
+      ),
+    );
   }
 
   /// Edit task - navigate to NewTaskScreen with task data

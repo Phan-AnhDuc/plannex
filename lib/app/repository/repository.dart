@@ -58,4 +58,13 @@ abstract class RestClientApi {
 
   @POST(Endpoints.notificationsDevice)
   Future<void> notificationsDevice(@Body() Map<String, dynamic> body);
+
+  @PATCH(Endpoints.usersSettings)
+  Future<dynamic> updateUsersSettings(@Body() Map<String, dynamic> body);
+
+  @GET(Endpoints.usersMe)
+  Future<dynamic> getUsersMe();
+
+  @GET('${Endpoints.getTaskDetail}/{id}')
+  Future<dynamic> getTaskDetail(@Path('id') String id);
 }

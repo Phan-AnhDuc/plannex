@@ -8,11 +8,15 @@ import '../components/app_text.dart';
 import '../repository/repository.dart';
 import '../data/models/task_models.dart';
 import 'home_page.dart';
+import 'new_task.dart';
 
 class ScheduleScreen extends StatefulWidget {
   final Function(int)? onTabChanged;
 
-  const ScheduleScreen({super.key, this.onTabChanged});
+  /// Gọi sau khi edit hoặc mark done để Home (Today) reload.
+  final void Function()? onTaskUpdated;
+
+  const ScheduleScreen({super.key, this.onTabChanged, this.onTaskUpdated});
 
   @override
   State<ScheduleScreen> createState() => _ScheduleScreenState();
@@ -184,6 +188,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         dotColor: const Color(0xFFF59E0B),
         isCompleted: isDone,
         category: null,
+        task: t,
       ));
     }
     list.sort((a, b) => a.startTime.compareTo(b.startTime));
@@ -378,7 +383,10 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           child: _showUnscheduledList
               ? _buildUnscheduledTasksView()
               : _dayLoading
-                  ? const Center(child: CircularProgressIndicator(color: Color(0xFF6366F1),))
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                      color: Color(0xFF6366F1),
+                    ))
                   : _buildDayTimeline(),
         ),
       ],
@@ -625,12 +633,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                 ? const SizedBox.shrink()
                 : Wrap(
                     spacing: 8.w,
-                    children: tasks
-                        .map((task) => _buildDayTaskCard(
-                              task,
-                              isHighlighted: isToday && _isTaskWithin30MinOfNow(task, now),
-                            ))
-                        .toList(),
+                    children: tasks.map((task) => _buildDayTaskCard(task, isHighlighted: isToday && _isTaskWithin30MinOfNow(task, now), onInfoTap: null)).toList(),
                   ),
           ),
         ],
@@ -646,9 +649,8 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     return task.startTime.isBefore(end) && task.endTime.isAfter(start);
   }
 
-  Widget _buildDayTaskCard(ScheduleTask task, {bool isHighlighted = false}) {
+  Widget _buildDayTaskCard(ScheduleTask task, {bool isHighlighted = false, VoidCallback? onInfoTap}) {
     final timeFormat = DateFormat('HH:mm');
-    // Highlight: lavender nền, viền tím trái, đường cam dưới title. Không highlight: trắng, không viền.
     final bgColor = isHighlighted ? const Color(0xFFE0E4FA) : Colors.white;
     final leftBorderColor = isHighlighted ? const Color(0xFF6366F1) : null;
     final timeColor = isHighlighted ? const Color(0xFFF59E0B) : const Color(0xFF6B7280);
@@ -704,6 +706,17 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                 textType: AppTextType.s14w4,
                 color: timeColor,
               ),
+              if (onInfoTap != null) ...[
+                const Spacer(),
+                GestureDetector(
+                  onTap: onInfoTap,
+                  child: Icon(
+                    Icons.info_outline,
+                    size: 20.sp,
+                    color: const Color(0xFF6B7280).withOpacity(0.5),
+                  ),
+                ),
+              ],
             ],
           ),
         ],
@@ -798,15 +811,17 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         true,
       );
       final list = _tasksFromRangeResponse(res, startOfWeek, usePriorityColor: true);
-      if (mounted) setState(() {
-        _weekTasks = list;
-        _weekLoading = false;
-      });
+      if (mounted)
+        setState(() {
+          _weekTasks = list;
+          _weekLoading = false;
+        });
     } catch (e) {
-      if (mounted) setState(() {
-        _weekTasks = [];
-        _weekLoading = false;
-      });
+      if (mounted)
+        setState(() {
+          _weekTasks = [];
+          _weekLoading = false;
+        });
       debugPrint('Schedule getTasksRange (week) error: $e');
     }
   }
@@ -818,10 +833,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   }
 
   List<ScheduleTask> _weekTasksForDay(DateTime day) {
-    return _weekTasks.where((t) =>
-        t.startTime.year == day.year &&
-        t.startTime.month == day.month &&
-        t.startTime.day == day.day).toList();
+    return _weekTasks.where((t) => t.startTime.year == day.year && t.startTime.month == day.month && t.startTime.day == day.day).toList();
   }
 
   Widget _buildWeekGrid() {
@@ -1205,7 +1217,10 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         ),
         Expanded(
           child: _monthDayLoading
-              ? const Center(child: CircularProgressIndicator(color: Color(0xFF6366F1),))
+              ? const Center(
+                  child: CircularProgressIndicator(
+                  color: Color(0xFF6366F1),
+                ))
               : ListView.builder(
                   padding: EdgeInsets.symmetric(horizontal: 16.w),
                   itemCount: _tasksForSelectedDay.length,
@@ -1278,34 +1293,424 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
           SizedBox(width: 12.w),
 
-          // Content
+          // Content (tap to open detail sheet với Edit / Mark as Done)
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  task.title,
-                  style: TextStyle(
-                    fontSize: 16.sp,
-                    fontWeight: FontWeight.w500,
-                    color: task.isCompleted ? const Color(0xFF9CA3AF) : const Color(0xFF1F2937),
-                    decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+            child: GestureDetector(
+              onTap: () {
+                if (task.task != null) _showTaskDetailSheet(task.task!, readOnly: false);
+              },
+              behavior: HitTestBehavior.opaque,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    task.title,
+                    style: TextStyle(
+                      fontSize: 16.sp,
+                      fontWeight: FontWeight.w500,
+                      color: task.isCompleted ? const Color(0xFF9CA3AF) : const Color(0xFF1F2937),
+                      decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+                    ),
                   ),
-                ),
-                SizedBox(height: 4.h),
-                Text(
-                  '${timeFormat.format(task.startTime)} - ${timeFormat.format(task.endTime)}',
-                  style: TextStyle(
-                    fontSize: 14.sp,
-                    color: task.isCompleted ? const Color(0xFFD1D5DB) : const Color(0xFF6B7280),
+                  SizedBox(height: 4.h),
+                  Text(
+                    '${timeFormat.format(task.startTime)} - ${timeFormat.format(task.endTime)}',
+                    style: TextStyle(
+                      fontSize: 14.sp,
+                      color: task.isCompleted ? const Color(0xFFD1D5DB) : const Color(0xFF6B7280),
+                    ),
                   ),
+                ],
+              ),
+            ),
+          ),
+          // Info icon (mở sheet giống tap vào content)
+          if (task.task != null)
+            GestureDetector(
+              onTap: () => _showTaskDetailSheet(task.task!, readOnly: false),
+              child: Icon(
+                Icons.info_outline,
+                size: 20.sp,
+                color: const Color(0xFF6B7280).withOpacity(0.5),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Bottom sheet chi tiết task. readOnly true = chỉ xem (Day view), false = có Edit / Mark as Done (Month view).
+  void _showTaskDetailSheet(Task task, {bool readOnly = false}) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.45,
+          minChildSize: 0.3,
+          maxChildSize: 0.8,
+          expand: false,
+          builder: (context, scrollController) {
+            final dateText = _scheduleBuildDateLabel(task.date);
+            final timeRange = _scheduleFormatTime(task.startAt, task.durationMinutes, date: task.date);
+            final durationText = _scheduleBuildDurationLabel(task.durationMinutes);
+            final repeatText = _scheduleBuildRepeatLabel(task);
+            final reminderText = _scheduleBuildReminderLabel(task);
+
+            return Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.15),
+                    blurRadius: 24,
+                    offset: const Offset(0, -8),
+                  ),
+                ],
+              ),
+              child: SingleChildScrollView(
+                controller: scrollController,
+                padding: EdgeInsets.fromLTRB(20.w, 12.h, 20.w, 20.h + MediaQuery.of(context).padding.bottom),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 44.w,
+                        height: 4.h,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE5E7EB),
+                          borderRadius: BorderRadius.circular(999.r),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 16.h),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            task.title,
+                            style: TextStyle(
+                              fontSize: 20.sp,
+                              fontWeight: FontWeight.w500,
+                              color: const Color(0xFF111827),
+                            ),
+                          ),
+                        ),
+                        if (task.priority != null)
+                          Padding(
+                            padding: EdgeInsets.only(left: 8.w),
+                            child: _scheduleBuildPriorityTag(task.priority!),
+                          ),
+                      ],
+                    ),
+                    SizedBox(height: 16.h),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        if (dateText != null)
+                          Expanded(
+                            flex: 3,
+                            child: _scheduleBuildDetailRow(icon: Icons.calendar_today, text: dateText),
+                          ),
+                        Container(
+                          width: 1,
+                          height: 16.h,
+                          color: const Color(0xFF4B5563).withOpacity(0.5),
+                          margin: EdgeInsets.symmetric(horizontal: 8.w),
+                        ),
+                        if (timeRange != null)
+                          Expanded(
+                            flex: 4,
+                            child: _scheduleBuildDetailRow(icon: Icons.access_time, text: timeRange),
+                          ),
+                      ],
+                    ),
+                    if (durationText != null) _scheduleBuildDetailRow(icon: Icons.timer_outlined, text: durationText),
+                    if (repeatText != null) _scheduleBuildDetailRow(icon: Icons.repeat, text: repeatText),
+                    if (reminderText != null) _scheduleBuildDetailRow(icon: Icons.notifications_none, text: reminderText),
+                    if (task.description != null && task.description!.isNotEmpty) ...[
+                      SizedBox(height: 16.h),
+                      Text(
+                        'Description',
+                        style: TextStyle(
+                          fontSize: 14.sp,
+                          fontWeight: FontWeight.w500,
+                          color: const Color(0xFF6B7280),
+                        ),
+                      ),
+                      SizedBox(height: 4.h),
+                      Text(
+                        task.description!,
+                        style: TextStyle(
+                          fontSize: 14.sp,
+                          color: const Color(0xFF111827),
+                        ),
+                      ),
+                    ],
+                    if (!readOnly) ...[
+                      SizedBox(height: 20.h),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                  _editScheduleTask(task);
+                                });
+                              },
+                              style: OutlinedButton.styleFrom(
+                                padding: EdgeInsets.symmetric(vertical: 14.h),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(24.r),
+                                ),
+                                side: const BorderSide(color: Color(0xFF2563EB)),
+                              ),
+                              child: Text(
+                                'Edit Task',
+                                style: TextStyle(
+                                  fontSize: 16.sp,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF2563EB),
+                                ),
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 12.w),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                                _toggleScheduleTaskDone(task);
+                              },
+                              style: ElevatedButton.styleFrom(
+                                padding: EdgeInsets.symmetric(vertical: 14.h),
+                                backgroundColor: const Color(0xFF2563EB),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(24.r),
+                                ),
+                              ),
+                              child: Text(
+                                'Mark as Done',
+                                style: TextStyle(
+                                  fontSize: 16.sp,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
                 ),
-              ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  String? _scheduleBuildDateLabel(String date) {
+    if (date.isEmpty) return null;
+    try {
+      final parts = date.split('-');
+      if (parts.length != 3) return date;
+      final dt = DateTime(
+        int.parse(parts[0]),
+        int.parse(parts[1]),
+        int.parse(parts[2]),
+      );
+      return DateFormat('EEEE, MMM d').format(dt);
+    } catch (_) {
+      return date;
+    }
+  }
+
+  String? _scheduleFormatTime(String? startAt, int durationMinutes, {String? date}) {
+    if (startAt == null || startAt.isEmpty) return null;
+    try {
+      DateTime start;
+      if (startAt.length <= 8 && startAt.contains(':')) {
+        if (date == null || date.isEmpty) return null;
+        final timeParts = startAt.split(':');
+        if (timeParts.length < 2) return null;
+        final dateParts = date.split('-');
+        if (dateParts.length != 3) return null;
+        start = DateTime(
+          int.parse(dateParts[0]),
+          int.parse(dateParts[1]),
+          int.parse(dateParts[2]),
+          int.parse(timeParts[0]),
+          int.parse(timeParts[1]),
+          timeParts.length > 2 ? int.parse(timeParts[2]) : 0,
+        );
+      } else {
+        String normalized = startAt.trim();
+        if (normalized.contains(' ') && !normalized.contains('T')) {
+          normalized = normalized.replaceFirst(' ', 'T');
+        }
+        start = DateTime.parse(normalized);
+      }
+      final end = start.add(Duration(minutes: durationMinutes));
+      final timeFormat = DateFormat('h:mm a');
+      return '${timeFormat.format(start)} - ${timeFormat.format(end)}';
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String? _scheduleBuildDurationLabel(int minutes) {
+    if (minutes <= 0) return null;
+    if (minutes % 60 == 0) {
+      final h = minutes ~/ 60;
+      return '$h hour${h > 1 ? 's' : ''}';
+    }
+    if (minutes > 60) {
+      final h = minutes ~/ 60;
+      final m = minutes % 60;
+      return '$h h $m min';
+    }
+    return '$minutes minutes';
+  }
+
+  String? _scheduleBuildRepeatLabel(Task task) {
+    final repeat = task.repeat;
+    if (repeat == null || repeat.type == null || repeat.type == 'NONE') {
+      return 'Does not repeat';
+    }
+    if (repeat.type == 'PRESET') {
+      switch (repeat.preset) {
+        case 'EVERY_DAY':
+          return 'Every day';
+        case 'WEEKDAYS':
+          return 'Weekdays (Mon-Fri)';
+        default:
+          return 'Repeats';
+      }
+    }
+    if (repeat.type == 'CUSTOM') return 'Custom repeat';
+    return 'Repeats';
+  }
+
+  String? _scheduleBuildReminderLabel(Task task) {
+    final minutes = task.reminderOffsetMinutes;
+    if (minutes == null || minutes <= 0) return 'No reminder';
+    if (minutes % 60 == 0) {
+      final h = minutes ~/ 60;
+      return '$h hour${h > 1 ? 's' : ''} before';
+    }
+    return '$minutes minutes before';
+  }
+
+  Widget _scheduleBuildDetailRow({required IconData icon, required String text}) {
+    return Padding(
+      padding: EdgeInsets.only(top: 6.h),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            icon,
+            size: 18.sp,
+            color: const Color(0xFF6B7280),
+          ),
+          SizedBox(width: 8.w),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 14.sp,
+                color: const Color(0xFF4B5563),
+              ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _scheduleBuildPriorityTag(String priority) {
+    String displayText;
+    Color backgroundColor;
+    Color textColor;
+    switch (priority.toUpperCase()) {
+      case 'HIGH':
+        displayText = 'High';
+        backgroundColor = const Color(0xFFFFE5E5);
+        textColor = const Color(0xFFDC2626);
+        break;
+      case 'MEDIUM':
+        displayText = 'Medium';
+        backgroundColor = const Color(0xFFFFF4E5);
+        textColor = const Color(0xFFF59E0B);
+        break;
+      case 'LOW':
+        displayText = 'Low';
+        backgroundColor = const Color(0xFFE5F9E5);
+        textColor = const Color(0xFF10B981);
+        break;
+      default:
+        displayText = priority;
+        backgroundColor = const Color(0xFFF3F4F6);
+        textColor = const Color(0xFF6B7280);
+    }
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(12.r),
+      ),
+      child: Text(
+        displayText,
+        style: TextStyle(
+          fontSize: 12.sp,
+          fontWeight: FontWeight.w600,
+          color: textColor,
+        ),
+      ),
+    );
+  }
+
+  void _editScheduleTask(Task task) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => NewTaskScreen(taskToEdit: task),
+      ),
+    ).then((_) {
+      if (!mounted) return;
+      if (_viewMode == 0) {
+        _fetchTasksForDay(_selectedDate);
+      } else {
+        _fetchTasksForSelectedDayInMonth(_selectedDate);
+        _fetchTasksCountForMonth(_focusedDate);
+      }
+      widget.onTaskUpdated?.call();
+    });
+  }
+
+  Future<void> _toggleScheduleTaskDone(Task task) async {
+    final newStatus = task.status == 'DONE' || task.status == 'COMPLETED' ? 'PENDING' : 'DONE';
+    try {
+      await Api.instance.restClient.updateTask(task.id, {'status': newStatus});
+      if (!mounted) return;
+      if (_viewMode == 0) {
+        _fetchTasksForDay(_selectedDate);
+      } else {
+        _fetchTasksForSelectedDayInMonth(_selectedDate);
+        _fetchTasksCountForMonth(_focusedDate);
+      }
+      widget.onTaskUpdated?.call();
+    } catch (e) {
+      debugPrint('Error updating task status: $e');
+    }
   }
 
   void _goToToday() {
@@ -1328,6 +1733,9 @@ class ScheduleTask {
   bool isCompleted;
   final String? category;
 
+  /// Full task from API for detail bottom sheet (edit, mark done).
+  final Task? task;
+
   ScheduleTask({
     required this.id,
     required this.title,
@@ -1337,5 +1745,6 @@ class ScheduleTask {
     this.dotColor,
     this.isCompleted = false,
     this.category,
+    this.task,
   });
 }

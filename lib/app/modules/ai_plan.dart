@@ -21,8 +21,15 @@ class AiPlanScreen extends StatefulWidget {
   static const int tabIndex = 2;
 
   final Function(int)? onTabChanged;
+  final bool hideMicButton;
+  final bool autoStartVoice;
 
-  const AiPlanScreen({super.key, this.onTabChanged});
+  const AiPlanScreen({
+    super.key,
+    this.onTabChanged,
+    this.hideMicButton = false,
+    this.autoStartVoice = false,
+  });
 
   @override
   State<AiPlanScreen> createState() => _AiPlanScreenState();
@@ -42,6 +49,16 @@ class _AiPlanScreenState extends State<AiPlanScreen> {
   static const Color _textDark = Color(0xFF1A1A2E);
   static const Color _textHint = Color(0xFF6B6B80);
   static const Color _toggleTrackInactive = Color(0xFFE0E0E0);
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.autoStartVoice) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _onMicTap();
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -109,10 +126,12 @@ class _AiPlanScreenState extends State<AiPlanScreen> {
     final status = await Permission.microphone.request();
     if (!status.isGranted) return;
     if (!mounted) return;
+    final maxDuration = widget.autoStartVoice ? const Duration(minutes: 2) : const Duration(seconds: 30);
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => _VoiceRecordDialog(
+        maxDuration: maxDuration,
         onTranscribed: (String text) {
           if (text.isNotEmpty) {
             final current = _inputController.text;
@@ -230,26 +249,27 @@ class _AiPlanScreenState extends State<AiPlanScreen> {
               ),
             ),
           ),
-          Padding(
-            padding: EdgeInsets.only(right: 12.w, bottom: 12.h),
-            child: Container(
-              width: 40.w,
-              height: 40.w,
-              decoration: BoxDecoration(
-                color: _micIconBlue.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: InkWell(
-                onTap: _onMicTap,
-                borderRadius: BorderRadius.circular(24.r),
-                child: Icon(
-                  Icons.mic_rounded,
-                  color: _micIconBlue,
-                  size: 26.sp,
+          if (!widget.hideMicButton)
+            Padding(
+              padding: EdgeInsets.only(right: 12.w, bottom: 12.h),
+              child: Container(
+                width: 40.w,
+                height: 40.w,
+                decoration: BoxDecoration(
+                  color: _micIconBlue.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: InkWell(
+                  onTap: _onMicTap,
+                  borderRadius: BorderRadius.circular(24.r),
+                  child: Icon(
+                    Icons.mic_rounded,
+                    color: _micIconBlue,
+                    size: 26.sp,
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -311,8 +331,12 @@ enum _VoiceDialogState { listening, transcribing }
 
 class _VoiceRecordDialog extends StatefulWidget {
   final void Function(String text) onTranscribed;
+  final Duration maxDuration;
 
-  const _VoiceRecordDialog({required this.onTranscribed});
+  const _VoiceRecordDialog({
+    required this.onTranscribed,
+    this.maxDuration = const Duration(seconds: 30),
+  });
 
   @override
   State<_VoiceRecordDialog> createState() => _VoiceRecordDialogState();
@@ -322,6 +346,8 @@ class _VoiceRecordDialogState extends State<_VoiceRecordDialog> with SingleTicke
   _VoiceDialogState _state = _VoiceDialogState.listening;
   final AudioRecorder _recorder = AudioRecorder();
   Timer? _maxDurationTimer;
+  Timer? _elapsedTimer;
+  int _elapsedSeconds = 0;
   late AnimationController _pulseController;
 
   static const Color _primaryBlue = Color(0xFF3A00FF);
@@ -329,7 +355,8 @@ class _VoiceRecordDialogState extends State<_VoiceRecordDialog> with SingleTicke
   static const Color _textDark = Color(0xFF1A1A2E);
   static const Color _textHint = Color(0xFF6B6B80);
   static const Color _btnGrey = Color(0xFFE0E0E0);
-  static const Duration _maxRecordingDuration = Duration(seconds: 30);
+
+  Duration get _maxDuration => widget.maxDuration;
 
   @override
   void initState() {
@@ -347,7 +374,14 @@ class _VoiceRecordDialogState extends State<_VoiceRecordDialog> with SingleTicke
       final dir = await getTemporaryDirectory();
       final filePath = '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
       await _recorder.start(const RecordConfig(), path: filePath);
-      _maxDurationTimer = Timer(_maxRecordingDuration, () => _stopRecording());
+      _maxDurationTimer = Timer(_maxDuration, () => _stopRecording());
+      _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) return;
+        setState(() {
+          _elapsedSeconds += 1;
+          if (_elapsedSeconds >= _maxDuration.inSeconds) _elapsedTimer?.cancel();
+        });
+      });
     } catch (e) {
       if (mounted) Navigator.of(context).pop();
       return;
@@ -357,6 +391,8 @@ class _VoiceRecordDialogState extends State<_VoiceRecordDialog> with SingleTicke
   Future<void> _stopRecording() async {
     _maxDurationTimer?.cancel();
     _maxDurationTimer = null;
+    _elapsedTimer?.cancel();
+    _elapsedTimer = null;
     try {
       final path = await _recorder.stop();
       if (path != null && mounted) {
@@ -433,6 +469,7 @@ class _VoiceRecordDialogState extends State<_VoiceRecordDialog> with SingleTicke
 
   void _cancel() {
     _maxDurationTimer?.cancel();
+    _elapsedTimer?.cancel();
     _recorder.cancel();
     Navigator.of(context).pop();
   }
@@ -440,12 +477,19 @@ class _VoiceRecordDialogState extends State<_VoiceRecordDialog> with SingleTicke
   @override
   void dispose() {
     _maxDurationTimer?.cancel();
+    _elapsedTimer?.cancel();
     _pulseController.dispose();
     super.dispose();
   }
 
-  /// Fixed content height so popup doesn't change size (avoids jitter during animation).
-  static double get _contentHeight => 180.h;
+  String _formatDuration(int seconds) {
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    return '${m.toString().padLeft(1)}:${s.toString().padLeft(2, '0')}';
+  }
+
+  /// Content height for popup so all content fits (timer, warning, labels).
+  static double get _contentHeight => 320.h;
 
   @override
   Widget build(BuildContext context) {
@@ -466,7 +510,9 @@ class _VoiceRecordDialogState extends State<_VoiceRecordDialog> with SingleTicke
             children: [
               SizedBox(
                 height: _contentHeight,
-                child: _state == _VoiceDialogState.listening ? _buildListeningContent() : _buildTranscribingContent(),
+                child: SingleChildScrollView(
+                  child: _state == _VoiceDialogState.listening ? _buildListeningContent() : _buildTranscribingContent(),
+                ),
               ),
               SizedBox(height: 24.h),
               _buildButtons(),
@@ -478,7 +524,11 @@ class _VoiceRecordDialogState extends State<_VoiceRecordDialog> with SingleTicke
   }
 
   Widget _buildListeningContent() {
+    final maxSeconds = _maxDuration.inSeconds;
+    final remainingSeconds = (maxSeconds - _elapsedSeconds).clamp(0, maxSeconds);
+    final isShortWarning = remainingSeconds <= 10 && remainingSeconds > 0;
     return Column(
+      mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         SizedBox(
@@ -514,12 +564,42 @@ class _VoiceRecordDialogState extends State<_VoiceRecordDialog> with SingleTicke
             },
           ),
         ),
-        SizedBox(height: 16.h),
+        SizedBox(height: 12.h),
+        Text(
+          _formatDuration(remainingSeconds),
+          style: TextStyle(
+            fontSize: 20.sp,
+            fontWeight: FontWeight.bold,
+            color: _textDark,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+        if (isShortWarning) ...[
+          SizedBox(height: 8.h),
+          AnimatedBuilder(
+            animation: _pulseController,
+            builder: (context, child) {
+              return Opacity(
+                opacity: 0.5 + 0.5 * _pulseController.value,
+                child: Text(
+                  'Speak at least 10 seconds',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w600,
+                    color: _redMic,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              );
+            },
+          ),
+        ],
+        SizedBox(height: 8.h),
         Text(
           'Listening...',
-          style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold, color: _textDark),
+          style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600, color: _textDark),
         ),
-        SizedBox(height: 6.h),
+        SizedBox(height: 4.h),
         Padding(
           padding: EdgeInsets.symmetric(horizontal: 8.w),
           child: Text(

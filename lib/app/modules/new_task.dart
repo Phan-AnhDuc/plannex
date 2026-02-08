@@ -7,8 +7,9 @@ import 'package:table_calendar/table_calendar.dart';
 
 // Components
 import '../components/app_text.dart';
-import '../repository/repository.dart';
 import '../data/models/task_models.dart';
+import '../data/models/user_models.dart';
+import '../repository/repository.dart';
 
 class NewTaskScreen extends StatefulWidget {
   final Task? taskToEdit;
@@ -50,13 +51,79 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
     super.initState();
     if (widget.taskToEdit != null) {
       _fillTaskData(widget.taskToEdit!);
+    } else {
+      _fetchUsersMeAndApplyDefaults();
+    }
+  }
+
+  /// Gọi getUsersMe và fill default duration (phút) + reminder (phút). Không trùng option thì dùng Custom.
+  Future<void> _fetchUsersMeAndApplyDefaults() async {
+    try {
+      final res = await Api.instance.restClient.getUsersMe();
+      if (!mounted) return;
+      if (res is Map<String, dynamic>) {
+        final user = UserMeResponse.fromJson(res);
+        final s = user.settings;
+        if (s != null) _applySettingsToForm(s);
+      }
+    } catch (e) {
+      if (mounted) debugPrint('NewTask getUsersMe error: $e');
+    }
+  }
+
+  /// Áp defaultDurationMinutes (phút) và defaultReminderOffsetMinutes (phút) vào form.
+  void _applySettingsToForm(UserSettings s) {
+    final durationMinutes = s.defaultDurationMinutes;
+    final reminderMinutes = s.defaultReminderOffsetMinutes;
+
+    // Duration: option 30, 60, 120 (phút) → 30m, 1h, 2h; còn lại → Custom (phút).
+    String newDuration;
+    int customDurationMinutes = _customDurationMinutes;
+    if (durationMinutes == 30) {
+      newDuration = '30m';
+    } else if (durationMinutes == 60) {
+      newDuration = '1h';
+    } else if (durationMinutes == 120) {
+      newDuration = '2h';
+    } else {
+      newDuration = 'Custom';
+      customDurationMinutes = durationMinutes > 0 ? durationMinutes : 30;
+    }
+
+    // Reminder: option 15, 30, 60, 90, 120 (phút); còn lại → Custom (phút).
+    String newReminder;
+    int? customReminderMinutes = _customReminderMinutes;
+    if (reminderMinutes == 15) {
+      newReminder = '15m';
+    } else if (reminderMinutes == 30) {
+      newReminder = '30m';
+    } else if (reminderMinutes == 60) {
+      newReminder = '1h';
+    } else if (reminderMinutes == 90) {
+      newReminder = '1.5h';
+    } else if (reminderMinutes == 120) {
+      newReminder = '2h';
+    } else {
+      newReminder = 'Custom';
+      customReminderMinutes = reminderMinutes > 0 ? reminderMinutes : 15;
+    }
+
+    setState(() {
+      _selectedDuration = newDuration;
+      _customDurationMinutes = customDurationMinutes;
+      _selectedReminderOption = newReminder;
+      _customReminderMinutes = customReminderMinutes;
+      _reminderEnabled = true;
+    });
+    if (newDuration == 'Custom') {
+      _customDurationController.text = customDurationMinutes.toString();
     }
   }
 
   void _fillTaskData(Task task) {
     _titleController.text = task.title;
     _descriptionController.text = task.description ?? '';
-    
+
     // Parse date
     if (task.date.isNotEmpty) {
       try {
@@ -72,7 +139,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
         debugPrint('Error parsing date: $e');
       }
     }
-    
+
     // Parse time
     if (!task.allDay && task.startAt.isNotEmpty) {
       try {
@@ -109,7 +176,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
         debugPrint('Error parsing time: $e');
       }
     }
-    
+
     // Parse duration
     _customDurationMinutes = task.durationMinutes;
     if (task.durationMinutes == 15) {
@@ -126,10 +193,10 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
       _selectedDuration = 'Custom';
       _customDurationController.text = task.durationMinutes.toString();
     }
-    
+
     // Parse priority
     _selectedPriority = task.priority ?? 'MEDIUM';
-    
+
     // Parse reminder
     if (task.reminderOffsetMinutes != null) {
       final offset = task.reminderOffsetMinutes!;
@@ -152,7 +219,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
       _selectedReminderOption = 'Off';
       _reminderEnabled = false;
     }
-    
+
     // Parse repeat
     if (task.repeat == null) {
       _repeatOption = 'Does not repeat';
@@ -170,7 +237,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
       _customFrequency = custom.frequency == 'DAILY' ? 'Daily' : 'Weekly';
       _customInterval = custom.interval;
       _customIntervalUnit = custom.frequency == 'DAILY' ? 'day(s)' : 'week(s)';
-      
+
       if (custom.range.mode == 'FOREVER') {
         _customRange = 'Forever';
       } else if (custom.range.mode == 'UNTIL_DATE') {
@@ -193,7 +260,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
         _customRange = 'For';
         _customForTimes = custom.range.count ?? 7;
       }
-      
+
       if (custom.frequency == 'WEEKLY' && custom.weekdays != null) {
         final dayNames = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
         for (int i = 0; i < dayNames.length; i++) {
@@ -241,14 +308,6 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
           fontWeight: FontWeight.w600,
         ),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.delete_forever_outlined, color: Color(0xFF1F2937)),
-            onPressed: () {
-              // Handle delete
-            },
-          ),
-        ],
       ),
       body: SingleChildScrollView(
         child: Padding(
@@ -334,7 +393,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
               SizedBox(height: 24.h),
 
               // Save Button
-              
+
               SizedBox(height: 32.h),
             ],
           ),
@@ -526,25 +585,28 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
   }
 
   Widget _buildSaveButton() {
-    return Padding(padding: EdgeInsets.fromLTRB(16.w, 0, 16.w, 16.h),child: SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: _createTask,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF1E40AF),
-          padding: EdgeInsets.symmetric(vertical: 16.h),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24.r),
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16.w, 0, 16.w, 16.h),
+      child: SizedBox(
+        width: double.infinity,
+        child: ElevatedButton(
+          onPressed: _createTask,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF1E40AF),
+            padding: EdgeInsets.symmetric(vertical: 16.h),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24.r),
+            ),
+            elevation: 0,
           ),
-          elevation: 0,
-        ),
-        child: AppText(
-          'Save',
-          textType: AppTextType.s16w7,
-          color: Colors.white,
+          child: AppText(
+            'Save',
+            textType: AppTextType.s16w7,
+            color: Colors.white,
+          ),
         ),
       ),
-    ),);
+    );
   }
 
   String _formatDate(DateTime date) {
@@ -602,9 +664,10 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
     );
 
     if (!mounted) return;
-    
+
     Time? finalTime;
-    Navigator.of(context).push(
+    Navigator.of(context)
+        .push(
       showPicker(
         context: context,
         value: initialTime,
@@ -612,18 +675,26 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
           finalTime = time;
         },
         onCancel: () => Navigator.of(context).pop(),
+        // --- Định dạng giờ ---
+        is24HrFormat: true,
+        minuteInterval: TimePickerInterval.ONE,
+        // --- Giao diện ---
+        iosStylePicker: true,
+        displayHeader: true,
         accentColor: const Color(0xFF6366F1),
         unselectedColor: const Color(0xFF9CA3AF),
         backgroundColor: const Color(0xFFF8F9FC),
         borderRadius: 16,
         elevation: 8,
+        // --- Nút & nhãn (có thể đổi thành tiếng Việt) ---
         okText: 'Ok',
         cancelText: 'Cancel',
-        is24HrFormat: false,
-        minuteInterval: TimePickerInterval.ONE,
-        iosStylePicker: true, // Cho phép nhập số trực tiếp (iOS style)
+        hourLabel: 'hours',
+        minuteLabel: 'minutes',
+        // --- Tuỳ chọn khác: barrierDismissible, hideButtons, width, height, wheelHeight, minHour, maxHour, ...
       ),
-    ).then((_) {
+    )
+        .then((_) {
       if (finalTime != null && mounted) {
         setState(() {
           _selectedTime = TimeOfDay(hour: finalTime!.hour, minute: finalTime!.minute);
@@ -1018,9 +1089,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
                     color: const Color(0xFF1F2937),
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                   ),
-                  trailing: isSelected
-                      ? Icon(Icons.check, color: const Color(0xFF2563EB), size: 20.sp)
-                      : null,
+                  trailing: isSelected ? Icon(Icons.check, color: const Color(0xFF2563EB), size: 20.sp) : null,
                 );
               }).toList(),
               SizedBox(height: 8.h),
@@ -1039,6 +1108,10 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
 
     String tempSelected = _selectedReminderOption;
     int? tempCustomMinutes = _customReminderMinutes ?? 15;
+    // Một controller dùng cho cả sheet, tránh tạo mới mỗi lần rebuild (gây lỗi nhập/xoá).
+    final reminderCustomController = TextEditingController(
+      text: tempCustomMinutes.toString(),
+    );
 
     await showModalBottomSheet(
       context: context,
@@ -1120,9 +1193,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
                               color: const Color(0xFF1F2937),
                               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                             ),
-                            trailing: isSelected
-                                ? Icon(Icons.check, color: const Color(0xFF2563EB), size: 20.sp)
-                                : null,
+                            trailing: isSelected ? Icon(Icons.check, color: const Color(0xFF2563EB), size: 20.sp) : null,
                           );
                         }).toList(),
                         if (tempSelected == 'Custom') ...[
@@ -1135,24 +1206,26 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
                                 border: Border.all(color: const Color(0xFFE5E7EB)),
                               ),
                               child: TextField(
+                                controller: reminderCustomController,
                                 keyboardType: TextInputType.number,
+                                style: TextStyle(
+                                  fontSize: 14.sp,
+                                  color: const Color(0xFF1F2937),
+                                  fontWeight: FontWeight.w500,
+                                ),
                                 decoration: InputDecoration(
                                   border: InputBorder.none,
                                   contentPadding: EdgeInsets.all(16.w),
                                   hintText: 'Enter minutes before (e.g., 45)',
+                                  hintStyle: TextStyle(
+                                    fontSize: 14.sp,
+                                    color: const Color(0xFF9CA3AF),
+                                    fontWeight: FontWeight.w400,
+                                  ),
                                   suffixText: 'minutes',
                                 ),
-                                controller: TextEditingController(
-                                  text: (tempCustomMinutes ?? 15).toString(),
-                                ),
-                                onChanged: (value) {
-                                  final intValue = int.tryParse(value);
-                                  if (intValue != null && intValue > 0) {
-                                    setModalState(() {
-                                      tempCustomMinutes = intValue;
-                                    });
-                                  }
-                                },
+                                // Không gọi setModalState trong onChanged để tránh rebuild → mất focus, không xoá được liên tiếp.
+                                // Giá trị chỉ đọc khi bấm Apply (reminderCustomController.text).
                               ),
                             ),
                           ),
@@ -1163,11 +1236,19 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
                             children: [
                               Expanded(
                                 child: TextButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color.fromARGB(255, 230, 239, 255),
+                                    padding: EdgeInsets.symmetric(vertical: 14.h),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(24.r),
+                                    ),
+                                    elevation: 0,
+                                  ),
                                   onPressed: () => Navigator.pop(context),
                                   child: AppText(
                                     'Cancel',
                                     textType: AppTextType.s16w4,
-                                    color: const Color(0xFF1F2937),
+                                    color: Colors.black,
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
@@ -1176,6 +1257,12 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
                               Expanded(
                                 child: ElevatedButton(
                                   onPressed: () {
+                                    if (tempSelected == 'Custom') {
+                                      final fromField = int.tryParse(reminderCustomController.text);
+                                      if (fromField != null && fromField > 0) {
+                                        tempCustomMinutes = fromField;
+                                      }
+                                    }
                                     setState(() {
                                       _selectedReminderOption = tempSelected;
                                       _customReminderMinutes = tempCustomMinutes;
@@ -1195,7 +1282,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
                                     'Apply',
                                     textType: AppTextType.s16w7,
                                     color: Colors.white,
-                                    fontWeight: FontWeight.w600,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
                               ),
@@ -1211,7 +1298,9 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
           },
         );
       },
-    );
+    ).then((_) {
+      reminderCustomController.dispose();
+    });
     if (mounted) _unfocusAfterOptionClosed();
   }
 
@@ -1851,32 +1940,30 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
 
     // Build repeat object
     Map<String, dynamic> repeatObj = {};
-    
+
     if (_repeatOption == 'Does not repeat') {
       repeatObj['type'] = 'NONE';
     } else if (_repeatOption == 'Custom') {
       repeatObj['type'] = 'CUSTOM';
-      
+
       // Build custom repeat object
       Map<String, dynamic> customObj = {};
       customObj['frequency'] = _customFrequency.toUpperCase(); // DAILY or WEEKLY
       customObj['interval'] = _customInterval;
-      
+
       // Build range object
       Map<String, dynamic> rangeObj = {};
       if (_customRange == 'Forever') {
         rangeObj['mode'] = 'FOREVER';
       } else if (_customRange == 'Until date') {
         rangeObj['mode'] = 'UNTIL_DATE';
-        rangeObj['untilDate'] = _customUntilDate != null
-            ? DateFormat('yyyy-MM-dd').format(_customUntilDate!)
-            : null;
+        rangeObj['untilDate'] = _customUntilDate != null ? DateFormat('yyyy-MM-dd').format(_customUntilDate!) : null;
       } else if (_customRange == 'For') {
         rangeObj['mode'] = 'COUNT';
         rangeObj['count'] = _customForTimes;
       }
       customObj['range'] = rangeObj;
-      
+
       // Add weekdays if frequency is WEEKLY
       if (_customFrequency == 'Weekly') {
         final dayNames = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
@@ -1887,16 +1974,13 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
           }
         }
         customObj['weekdays'] = selectedWeekdays.isNotEmpty ? selectedWeekdays : null;
-      } else {
-        
-      }
-      
+      } else {}
+
       repeatObj['custom'] = customObj;
     } else {
       // Preset options
       repeatObj['type'] = 'PRESET';
-  
-      
+
       if (_repeatOption == 'Every day') {
         repeatObj['preset'] = 'EVERY_DAY';
       } else if (_repeatOption == 'Weekdays (Mon-Fri)') {
@@ -1943,7 +2027,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
       EasyLoading.show(status: isEditMode ? 'Updating task...' : 'Creating task...');
 
       final body = _buildRequestBody();
-      
+
       print('Request body: $body'); // Debug print
 
       if (isEditMode) {
@@ -1954,7 +2038,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
       }
 
       EasyLoading.dismiss();
-      
+
       if (mounted) {
         EasyLoading.showSuccess(isEditMode ? 'Task updated successfully!' : 'Task created successfully!');
         Navigator.pop(context);
@@ -2132,4 +2216,3 @@ class _DatePickerBottomSheetState extends State<_DatePickerBottomSheet> {
     );
   }
 }
-

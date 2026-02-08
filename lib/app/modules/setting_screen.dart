@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:get/get.dart';
+import 'package:day_night_time_picker/day_night_time_picker.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 // Components
 import '../components/app_text.dart';
 import '../data/app_shared_pref.dart';
+import '../data/models/user_models.dart';
+import '../repository/repository.dart';
 import 'home_page.dart';
 import 'login_screen.dart';
 
@@ -13,18 +18,162 @@ class SettingScreen extends StatefulWidget {
   const SettingScreen({super.key, this.onTabChanged});
 
   @override
-  State<SettingScreen> createState() => _SettingScreenState();
+  State<SettingScreen> createState() => SettingScreenState();
 }
 
-class _SettingScreenState extends State<SettingScreen> {
-  // Settings state
+class SettingScreenState extends State<SettingScreen> {
+  // Settings state (fill từ API users/me)
   bool _enableReminders = true;
-  String _theme = 'Light / Dark';
+  late String _theme;
   String _defaultTaskDuration = '30 minutes';
   String _reminderOffset = '15 minutes before';
-  String _startWorkingDay = '09:00 AM';
-  String _endWorkingDay = '05:00 PM';
-  final String _appVersion = '1.0.0';
+  String _startWorkingDay = '09:00';
+  String _endWorkingDay = '17:00';
+  String _timezone = 'Asia/Ho_Chi_Minh';
+  String _appVersion = '—'; // Lấy từ package (pubspec version) khi vào màn
+  bool _settingsLoading = false;
+
+  static String _themeDisplayFromMode(String mode) {
+    switch (mode) {
+      case 'dark':
+        return 'Dark';
+      case 'system':
+        return 'System';
+      default:
+        return 'Light';
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _theme = _themeDisplayFromMode(AppSharedPref.getThemeMode());
+    _fetchUsersMe();
+    _loadAppVersion();
+  }
+
+  /// Lấy version từ pubspec (version+buildNumber, ví dụ 1.0.1+1).
+  Future<void> _loadAppVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+
+      if (mounted) {
+        setState(() => _appVersion = '${info.version}+${info.buildNumber}');
+      }
+    } catch (_) {
+      if (mounted) setState(() => _appVersion = '—');
+    }
+  }
+
+  /// Chuyển defaultDurationMinutes (API) -> text hiển thị.
+  static String _durationMinutesToDisplay(int minutes) {
+    switch (minutes) {
+      case 15:
+        return '15 minutes';
+      case 45:
+        return '45 minutes';
+      case 60:
+        return '1 hour';
+      case 120:
+        return '2 hours';
+      default:
+        return '30 minutes';
+    }
+  }
+
+  /// Chuyển text hiển thị -> defaultDurationMinutes (API).
+  static int _displayToDurationMinutes(String display) {
+    switch (display) {
+      case '15 minutes':
+        return 15;
+      case '45 minutes':
+        return 45;
+      case '1 hour':
+        return 60;
+      case '2 hours':
+        return 120;
+      default:
+        return 30;
+    }
+  }
+
+  /// Chuyển defaultReminderOffsetMinutes (API) -> text hiển thị.
+  static String _reminderMinutesToDisplay(int minutes) {
+    switch (minutes) {
+      case 5:
+        return '5 minutes before';
+      case 10:
+        return '10 minutes before';
+      case 30:
+        return '30 minutes before';
+      case 60:
+        return '1 hour before';
+      default:
+        return '15 minutes before';
+    }
+  }
+
+  /// Chuyển text hiển thị -> defaultReminderOffsetMinutes (API).
+  static int _displayToReminderMinutes(String display) {
+    switch (display) {
+      case '5 minutes before':
+        return 5;
+      case '10 minutes before':
+        return 10;
+      case '30 minutes before':
+        return 30;
+      case '1 hour before':
+        return 60;
+      default:
+        return 15;
+    }
+  }
+
+  /// Gọi API users/me, parse response và fill vào các option.
+  Future<void> _fetchUsersMe() async {
+    if (_settingsLoading) return;
+    setState(() => _settingsLoading = true);
+    try {
+      final res = await Api.instance.restClient.getUsersMe();
+      if (!mounted) return;
+      if (res is Map<String, dynamic>) {
+        final user = UserMeResponse.fromJson(res);
+        final s = user.settings;
+        if (s != null) {
+          setState(() {
+            _timezone = s.timezone;
+            _defaultTaskDuration = _durationMinutesToDisplay(s.defaultDurationMinutes);
+            _reminderOffset = _reminderMinutesToDisplay(s.defaultReminderOffsetMinutes);
+            _startWorkingDay = s.workingHoursStart;
+            _endWorkingDay = s.workingHoursEnd;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) debugPrint('Setting getUsersMe error: $e');
+    } finally {
+      if (mounted) setState(() => _settingsLoading = false);
+    }
+  }
+
+  /// Build body và gọi PATCH users/settings.
+  Future<void> _updateUsersSettings() async {
+    try {
+      final body = <String, dynamic>{
+        'timezone': _timezone,
+        'defaultDurationMinutes': _displayToDurationMinutes(_defaultTaskDuration),
+        'defaultReminderOffsetMinutes': _displayToReminderMinutes(_reminderOffset),
+        'workingHoursStart': _startWorkingDay,
+        'workingHoursEnd': _endWorkingDay,
+      };
+      await Api.instance.restClient.updateUsersSettings(body);
+    } catch (e) {
+      if (mounted) debugPrint('Setting updateUsersSettings error: $e');
+    }
+  }
+
+  /// Cho HomePage gọi khi user chuyển sang tab Settings.
+  void fetchUsersMe() => _fetchUsersMe();
 
   @override
   Widget build(BuildContext context) {
@@ -177,7 +326,7 @@ class _SettingScreenState extends State<SettingScreen> {
           'Settings',
           textType: AppTextType.custom,
           fontSize: 18,
-          fontWeight: FontWeight.bold,
+          fontWeight: FontWeight.w500,
           color: const Color(0xFF1F2937),
         ),
       ),
@@ -196,7 +345,7 @@ class _SettingScreenState extends State<SettingScreen> {
         AppText(
           title,
           textType: AppTextType.s16w4,
-          fontWeight: FontWeight.bold,
+          fontWeight: FontWeight.w500,
           color: const Color(0xFF1F2937),
         ),
 
@@ -350,6 +499,7 @@ class _SettingScreenState extends State<SettingScreen> {
           AppText(
             value,
             textType: AppTextType.s16w4,
+            fontWeight: FontWeight.w500,
             color: const Color(0xFF6B7280),
           ),
         ],
@@ -364,8 +514,16 @@ class _SettingScreenState extends State<SettingScreen> {
       title: 'Theme',
       options: ['Light', 'Dark', 'System'],
       currentValue: _theme,
-      onSelected: (value) {
-        setState(() => _theme = value);
+      optionIcons: const [
+        Icons.light_mode,
+        Icons.dark_mode,
+        Icons.brightness_auto,
+      ],
+      onSelected: (value) async {
+        final mode = value.toLowerCase();
+        await AppSharedPref.setThemeMode(mode);
+        if (mounted) setState(() => _theme = value);
+        Get.forceAppUpdate();
       },
     );
   }
@@ -377,6 +535,7 @@ class _SettingScreenState extends State<SettingScreen> {
       currentValue: _defaultTaskDuration,
       onSelected: (value) {
         setState(() => _defaultTaskDuration = value);
+        _updateUsersSettings();
       },
     );
   }
@@ -394,6 +553,7 @@ class _SettingScreenState extends State<SettingScreen> {
       currentValue: _reminderOffset,
       onSelected: (value) {
         setState(() => _reminderOffset = value);
+        _updateUsersSettings();
       },
     );
   }
@@ -404,6 +564,7 @@ class _SettingScreenState extends State<SettingScreen> {
       currentValue: _startWorkingDay,
       onSelected: (value) {
         setState(() => _startWorkingDay = value);
+        _updateUsersSettings();
       },
     );
   }
@@ -414,6 +575,7 @@ class _SettingScreenState extends State<SettingScreen> {
       currentValue: _endWorkingDay,
       onSelected: (value) {
         setState(() => _endWorkingDay = value);
+        _updateUsersSettings();
       },
     );
   }
@@ -471,103 +633,186 @@ class _SettingScreenState extends State<SettingScreen> {
     required List<String> options,
     required String currentValue,
     required ValueChanged<String> onSelected,
+    List<IconData>? optionIcons,
   }) {
     showModalBottomSheet(
       context: context,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
-      ),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: EdgeInsets.all(16.w),
-                child: AppText(
-                  title,
-                  textType: AppTextType.custom,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1F2937),
-                ),
+        final maxH = MediaQuery.of(context).size.height * 0.5;
+        return Container(
+          constraints: BoxConstraints(maxHeight: maxH),
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 20,
+                offset: const Offset(0, -4),
               ),
-              Divider(height: 1, color: const Color(0xFFE5E7EB)),
-              ...options.map((option) {
-                final isSelected = option == currentValue || currentValue.contains(option);
-                return InkWell(
-                  onTap: () {
-                    onSelected(option);
-                    Navigator.pop(context);
-                  },
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: 16.w,
-                      vertical: 16.h,
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: AppText(
-                            option,
-                            textType: AppTextType.s16w4,
-                            color: const Color(0xFF1F2937),
-                          ),
-                        ),
-                        if (isSelected)
-                          Icon(
-                            Icons.check,
-                            size: 20.sp,
-                            color: const Color(0xFF6366F1),
-                          ),
-                      ],
+            ],
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(height: 12.h),
+                Center(
+                  child: Container(
+                    width: 40.w,
+                    height: 4.h,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE5E7EB),
+                      borderRadius: BorderRadius.circular(2.r),
                     ),
                   ),
-                );
-              }),
-              SizedBox(height: 16.h),
-            ],
+                ),
+                Padding(
+                  padding: EdgeInsets.fromLTRB(20.w, 16.h, 20.w, 12.h),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: AppText(
+                          title,
+                          textType: AppTextType.custom,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.close, size: 22.sp, color: const Color(0xFF6B7280)),
+                        onPressed: () => Navigator.pop(context),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                ),
+                Divider(height: 1, color: const Color(0xFFE5E7EB)),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    padding: EdgeInsets.symmetric(vertical: 8.h, horizontal: 8.w),
+                    itemCount: options.length,
+                    separatorBuilder: (_, __) => SizedBox(height: 4.h),
+                    itemBuilder: (context, index) {
+                      final option = options[index];
+                      final isSelected = option == currentValue || currentValue.contains(option);
+                      final icon = optionIcons != null && index < optionIcons.length ? optionIcons[index] : null;
+                      return Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            onSelected(option);
+                            Navigator.pop(context);
+                          },
+                          borderRadius: BorderRadius.circular(12.r),
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 14.h),
+                            child: Row(
+                              children: [
+                                if (icon != null) ...[
+                                  Icon(
+                                    icon,
+                                    size: 22.sp,
+                                    color: isSelected ? const Color(0xFF6366F1) : const Color(0xFF6B7280),
+                                  ),
+                                  SizedBox(width: 12.w),
+                                ],
+                                Expanded(
+                                  child: AppText(
+                                    option,
+                                    textType: AppTextType.s16w4,
+                                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                                    color: Theme.of(context).colorScheme.onSurface,
+                                  ),
+                                ),
+                                if (isSelected)
+                                  Icon(
+                                    Icons.check_circle,
+                                    size: 22.sp,
+                                    color: const Color(0xFF6366F1),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                SizedBox(height: 16.h),
+              ],
+            ),
           ),
         );
       },
     );
   }
 
+  /// Parse giờ từ string: "09:00" (24h) hoặc "09:00 AM" / "05:00 PM" (12h).
+  TimeOfDay _parseTimeString(String value) {
+    final trimmed = value.trim();
+    if (trimmed.contains(' ')) {
+      final parts = trimmed.split(':');
+      if (parts.length < 2) return const TimeOfDay(hour: 9, minute: 0);
+      final minutePart = parts[1].split(' ');
+      final minute = int.tryParse(minutePart[0].trim()) ?? 0;
+      final isPM = minutePart.length > 1 && minutePart[1].toUpperCase().startsWith('P');
+      var hour = int.tryParse(parts[0].trim()) ?? 9;
+      if (isPM && hour != 12) hour += 12;
+      if (!isPM && hour == 12) hour = 0;
+      return TimeOfDay(hour: hour, minute: minute);
+    }
+    final parts = trimmed.split(':');
+    if (parts.length < 2) return const TimeOfDay(hour: 9, minute: 0);
+    final hour = int.tryParse(parts[0].trim()) ?? 9;
+    final minute = int.tryParse(parts[1].trim()) ?? 0;
+    return TimeOfDay(hour: hour, minute: minute);
+  }
+
   void _showTimePicker({
     required String title,
     required String currentValue,
     required ValueChanged<String> onSelected,
-  }) async {
-    // Parse current time
-    final parts = currentValue.split(':');
-    final hourPart = parts[0];
-    final minuteAndPeriod = parts[1].split(' ');
-    final minute = int.parse(minuteAndPeriod[0]);
-    final isPM = minuteAndPeriod[1] == 'PM';
-    var hour = int.parse(hourPart);
-    if (isPM && hour != 12) hour += 12;
-    if (!isPM && hour == 12) hour = 0;
+  }) {
+    final initial = _parseTimeString(currentValue);
+    final initialTime = Time(hour: initial.hour, minute: initial.minute, second: 0);
 
-    final TimeOfDay? picked = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay(hour: hour, minute: minute),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFF6366F1),
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (picked != null) {
-      final period = picked.hour >= 12 ? 'PM' : 'AM';
-      final displayHour = picked.hourOfPeriod == 0 ? 12 : picked.hourOfPeriod;
-      final formattedTime = '${displayHour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')} $period';
-      onSelected(formattedTime);
-    }
+    Time? finalTime;
+    Navigator.of(context)
+        .push(
+      showPicker(
+        context: context,
+        value: initialTime,
+        onChange: (Time time) {
+          finalTime = time;
+        },
+        onCancel: () => Navigator.of(context).pop(),
+        is24HrFormat: true,
+        minuteInterval: TimePickerInterval.ONE,
+        iosStylePicker: true,
+        displayHeader: true,
+        accentColor: const Color(0xFF6366F1),
+        unselectedColor: const Color(0xFF9CA3AF),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        borderRadius: 16,
+        elevation: 8,
+        okText: 'Ok',
+        cancelText: 'Cancel',
+        hourLabel: 'hours',
+        minuteLabel: 'minutes',
+      ),
+    )
+        .then((_) {
+      if (finalTime != null && mounted) {
+        final formatted = '${finalTime!.hour.toString().padLeft(2, '0')}:${finalTime!.minute.toString().padLeft(2, '0')}';
+        onSelected(formatted);
+      }
+    });
   }
 }

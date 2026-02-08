@@ -15,6 +15,7 @@ class AppSharedPref {
   static const String _fcmTokenKey = 'fcm_token';
   static const String _currentLocalKey = 'current_local';
   static const String _lightThemeKey = 'is_theme_light';
+  static const String _themeModeKey = 'theme_mode'; // 'light' | 'dark' | 'system'
   static const String _userProfile = 'user_profile';
   static const String _userUsingStatus = 'user_using_status';
   static const String _autoLogin = 'auto_login';
@@ -45,7 +46,14 @@ class AppSharedPref {
   /// get if the current theme type is light
   static bool getThemeIsLight() =>
       _sharedPreferences.getBool(_lightThemeKey) ??
-      true; // todo set the default theme (true for light, false for dark)
+      true;
+
+  /// theme mode: 'light' | 'dark' | 'system'
+  static Future<void> setThemeMode(String mode) =>
+      _sharedPreferences.setString(_themeModeKey, mode);
+
+  static String getThemeMode() =>
+      _sharedPreferences.getString(_themeModeKey) ?? 'light';
 
   /// save current locale
   static Future<void> setCurrentLanguage(String languageCode) =>
