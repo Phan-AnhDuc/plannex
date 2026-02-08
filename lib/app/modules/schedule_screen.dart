@@ -49,6 +49,12 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     if (_viewMode == 0) _fetchTasksForDay(_selectedDate);
   }
 
+  @override
+  void dispose() {
+    _zoomController.dispose();
+    super.dispose();
+  }
+
   Map<String, int> _monthDateCounts = {};
   int _monthCountsVersion = 0;
 
@@ -560,41 +566,67 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   static const int _dayStartHour = 0;
   static const int _dayEndHour = 24;
   static const double _rowHeight = 80;
+  
+  // Zoom controller cho InteractiveViewer
+  final TransformationController _zoomController = TransformationController();
 
   Widget _buildDayTimeline() {
     final now = DateTime.now();
     final isToday = _selectedDate.year == now.year && _selectedDate.month == now.month && _selectedDate.day == now.day;
-    final currentTimeTop = isToday && now.hour >= _dayStartHour && now.hour < _dayEndHour ? (now.hour - _dayStartHour) * _rowHeight.h + (now.minute + now.second / 60) / 60 * _rowHeight.h : null;
+    final currentTimeTop = isToday && now.hour >= _dayStartHour && now.hour < _dayEndHour 
+        ? (now.hour - _dayStartHour) * _rowHeight.h + (now.minute + now.second / 60) / 60 * _rowHeight.h 
+        : null;
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.symmetric(horizontal: 16.w),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Column(
-            children: List.generate(
-              _dayEndHour - _dayStartHour,
-              (index) {
-                final hour = _dayStartHour + index;
-                final tasksAtHour = _tasksForSelectedDay.where((task) {
-                  return task.startTime.hour == hour;
-                }).toList();
-                return _buildTimelineRow(hour, tasksAtHour, now: now, isToday: isToday);
-              },
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    
+    return Stack(
+      children: [
+        // InteractiveViewer: pinch-to-zoom như xem ảnh
+        InteractiveViewer(
+          transformationController: _zoomController,
+          minScale: 0.15,  // Thu nhỏ tối đa 15% - xem cả ngày trong 1 màn hình nhỏ
+          maxScale: 3.0,   // Phóng to tối đa 300%
+          boundaryMargin: EdgeInsets.symmetric(
+            horizontal: screenWidth,  // Cho phép kéo trái/phải
+            vertical: screenHeight,   // Cho phép kéo lên/xuống
+          ),
+          constrained: false,
+          panEnabled: true,
+          scaleEnabled: true,
+          child: Container(
+            width: screenWidth,
+            padding: EdgeInsets.symmetric(horizontal: 16.w),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Column(
+                  children: List.generate(
+                    _dayEndHour - _dayStartHour,
+                    (index) {
+                      final hour = _dayStartHour + index;
+                      final tasksAtHour = _tasksForSelectedDay.where((task) {
+                        return task.startTime.hour == hour;
+                      }).toList();
+                      return _buildTimelineRow(hour, tasksAtHour, now: now, isToday: isToday);
+                    },
+                  ),
+                ),
+                if (currentTimeTop != null)
+                  Positioned(
+                    top: currentTimeTop,
+                    left: 0,
+                    right: 0,
+                    child: Container(
+                      height: 2,
+                      color: const Color(0xFFF59E0B),
+                    ),
+                  ),
+              ],
             ),
           ),
-          if (currentTimeTop != null)
-            Positioned(
-              top: currentTimeTop,
-              left: 0,
-              right: 0,
-              child: Container(
-                height: 2,
-                color: const Color(0xFFF59E0B),
-              ),
-            ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
