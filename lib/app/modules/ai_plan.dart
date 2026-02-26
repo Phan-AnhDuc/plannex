@@ -11,24 +11,24 @@ import 'package:http_parser/http_parser.dart';
 
 import '../contants/dio_client.dart';
 import '../contants/end_point.dart';
+import '../data/models/task_models.dart';
 import 'ai_gen_task.dart';
 import 'home_page.dart';
 
-/// AI Planner screen: natural language input → generate & optionally auto-schedule tasks.
-/// Used as a tab in [HomePage] with [AppBottomNavBar].
 class AiPlanScreen extends StatefulWidget {
-  /// Tab index for AI Planner in [HomePage] bottom nav.
   static const int tabIndex = 2;
 
   final Function(int)? onTabChanged;
   final bool hideMicButton;
   final bool autoStartVoice;
+  final bool isFromHomeToday;
 
   const AiPlanScreen({
     super.key,
     this.onTabChanged,
     this.hideMicButton = false,
     this.autoStartVoice = false,
+    this.isFromHomeToday = false,
   });
 
   @override
@@ -85,9 +85,7 @@ class _AiPlanScreenState extends State<AiPlanScreen> {
     try {
       EasyLoading.show(status: 'Generating...');
       final dio = dioClient(Endpoints.baseUrl);
-      final apiPath = Endpoints.plannerParse.startsWith('/')
-          ? Endpoints.plannerParse.replaceFirst('/', '')
-          : Endpoints.plannerParse;
+      final apiPath = Endpoints.plannerParse.startsWith('/') ? Endpoints.plannerParse.replaceFirst('/', '') : Endpoints.plannerParse;
       final response = await dio.post(apiPath, data: {
         'inputText': text,
         'now': _nowIso8601Local(),
@@ -102,6 +100,7 @@ class _AiPlanScreenState extends State<AiPlanScreen> {
         final List<dynamic> rawTasks = data['tasks'] as List<dynamic>;
         final tasks = rawTasks
             .whereType<Map<String, dynamic>>()
+            .map((e) => Task.fromJson(e))
             .toList(growable: false);
 
         EasyLoading.dismiss();
@@ -126,8 +125,8 @@ class _AiPlanScreenState extends State<AiPlanScreen> {
     final status = await Permission.microphone.request();
     if (!status.isGranted) return;
     if (!mounted) return;
-    final maxDuration = widget.autoStartVoice ? const Duration(minutes: 2) : const Duration(seconds: 30);
-    await showDialog<void>(
+    final maxDuration = widget.autoStartVoice ? const Duration(minutes: 2) : const Duration(minutes: 2);
+    final result = await showDialog<String?>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => _VoiceRecordDialog(
@@ -137,13 +136,29 @@ class _AiPlanScreenState extends State<AiPlanScreen> {
             final current = _inputController.text;
             _inputController.text = current.isEmpty ? text : '$current\n$text';
             if (_autoScheduleAfterGenerating) {
-              // Sau khi ghi âm xong nếu bật auto-schedule thì tự gọi generate.
               _onGenerateTasks();
             }
           }
         },
       ),
     );
+
+    if (!mounted) return;
+    if (result == 'error') {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Voice recording failed'),
+          content: const Text('Something went wrong while processing your voice. Please try again.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   @override
@@ -186,14 +201,36 @@ class _AiPlanScreenState extends State<AiPlanScreen> {
   Widget _buildHeader() {
     return Padding(
       padding: EdgeInsets.only(top: 16.h, left: 20.w, right: 20.w),
-      child: Center(
-        child: Text(
-          'AI Planner',
-          style: TextStyle(
-            fontSize: 22.sp,
-            fontWeight: FontWeight.bold,
-            color: _textDark,
-          ),
+      child: SizedBox(
+        height: 40.h,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Text(
+              'AI Planner',
+              style: TextStyle(
+                fontSize: 22.sp,
+                fontWeight: FontWeight.bold,
+                color: _textDark,
+              ),
+            ),
+            if (widget.isFromHomeToday)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  icon: Icon(
+                    Icons.arrow_back_ios_new,
+                    size: 20.sp,
+                    color: _textDark,
+                  ),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -400,10 +437,10 @@ class _VoiceRecordDialogState extends State<_VoiceRecordDialog> with SingleTicke
         await _uploadAndTranscribe(path);
       } else if (mounted) {
         print('===============path is null');
-        Navigator.of(context).pop();
+        Navigator.of(context).pop('error');
       }
     } catch (_) {
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) Navigator.of(context).pop('error');
     }
   }
 
@@ -463,7 +500,7 @@ class _VoiceRecordDialogState extends State<_VoiceRecordDialog> with SingleTicke
       widget.onTranscribed(text ?? '');
       Navigator.of(context).pop();
     } catch (e) {
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) Navigator.of(context).pop('error');
     }
   }
 

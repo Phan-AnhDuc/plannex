@@ -192,7 +192,7 @@ Future<void> _setupFirebaseMessaging(GlobalKey<NavigatorState> navigatorKey) asy
             builder: (_) => NotiTaskScreen(
               taskId: taskId,
               task: task,
-              taskTitle: task.title,
+              taskTitle: task.title ?? 'Task',
               timeRange: timeRange,
               startsInMinutes: startsIn,
             ),
@@ -241,7 +241,7 @@ Future<void> _setupFirebaseMessaging(GlobalKey<NavigatorState> navigatorKey) asy
     }
 
     final t = task;
-    final timeRange = _formatTimeRange(t.startAt, t.durationMinutes, t.date);
+    final timeRange = _formatTimeRange(t.startAt, t.durationMinutes ?? 0, t.date);
     debugPrint('Parsed -> taskId: $taskId, title: ${t.title}, timeRange: $timeRange, startsInMinutes: $startsIn');
 
     await _pushNotiTaskWhenNavigatorReady(

@@ -67,4 +67,7 @@ abstract class RestClientApi {
 
   @GET('${Endpoints.getTaskDetail}/{id}')
   Future<dynamic> getTaskDetail(@Path('id') String id);
+
+  @POST('${Endpoints.tasks}/{id}/snooze')
+  Future<void> snoozeTask(@Path('id') String id, @Body() Map<String, dynamic> body);
 }

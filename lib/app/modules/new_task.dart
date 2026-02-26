@@ -34,7 +34,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
 
   // Priority & reminder
   String _selectedPriority = 'MEDIUM'; // HIGH, MEDIUM, LOW
-  String _selectedReminderOption = '15m'; // 15m, 30m, 1h, 1.5h, 2h, Custom, Off
+  String _selectedReminderOption = '15m'; // 15m, 30m, 1h, 1.5h, 2h, Custom
   int? _customReminderMinutes;
 
   // Custom repeat settings
@@ -121,13 +121,13 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
   }
 
   void _fillTaskData(Task task) {
-    _titleController.text = task.title;
+    _titleController.text = task.title ?? '';
     _descriptionController.text = task.description ?? '';
 
     // Parse date
-    if (task.date.isNotEmpty) {
+    if ((task.date ?? '').isNotEmpty) {
       try {
-        final dateParts = task.date.split('-');
+        final dateParts = task.date!.split('-');
         if (dateParts.length == 3) {
           _selectedDate = DateTime(
             int.parse(dateParts[0]),
@@ -141,14 +141,15 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
     }
 
     // Parse time
-    if (!task.allDay && task.startAt.isNotEmpty) {
+    final rawStartAt = task.startAt;
+    if (task.allDay != true && rawStartAt != null && rawStartAt.isNotEmpty) {
       try {
         DateTime startDateTime;
-        if (task.startAt.length <= 8 && task.startAt.contains(':')) {
+        if (rawStartAt.length <= 8 && rawStartAt.contains(':')) {
           // Time only format
-          final timeParts = task.startAt.split(':');
-          if (timeParts.length >= 2 && task.date.isNotEmpty) {
-            final dateParts = task.date.split('-');
+          final timeParts = rawStartAt.split(':');
+          if (timeParts.length >= 2 && (task.date ?? '').isNotEmpty) {
+            final dateParts = task.date!.split('-');
             if (dateParts.length == 3) {
               startDateTime = DateTime(
                 int.parse(dateParts[0]),
@@ -165,7 +166,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
             return;
           }
         } else {
-          String normalized = task.startAt.trim();
+          String normalized = rawStartAt.trim();
           if (normalized.contains(' ') && !normalized.contains('T')) {
             normalized = normalized.replaceFirst(' ', 'T');
           }
@@ -178,7 +179,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
     }
 
     // Parse duration
-    _customDurationMinutes = task.durationMinutes;
+    _customDurationMinutes = task.durationMinutes ?? 30;
     if (task.durationMinutes == 15) {
       _selectedDuration = '15m';
     } else if (task.durationMinutes == 30) {
@@ -216,8 +217,9 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
       }
       _reminderEnabled = true;
     } else {
-      _selectedReminderOption = 'Off';
-      _reminderEnabled = false;
+      // Không còn option Off, nếu task không có reminder thì để mặc định 15m nhưng bật reminder.
+      _selectedReminderOption = '15m';
+      _reminderEnabled = true;
     }
 
     // Parse repeat
@@ -444,6 +446,13 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
     );
   }
 
+  double _getOptionValueFontSize(String text) {
+    final length = text.length;
+    if (length <= 25) return 16;
+    if (length <= 60) return 14;
+    return 12;
+  }
+
   Widget _buildOptionRow({
     required IconData icon,
     required String label,
@@ -471,6 +480,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
             ),
             SizedBox(width: 12.w),
             Expanded(
+              flex: 3,
               child: AppText(
                 label,
                 textType: AppTextType.s16w4,
@@ -478,17 +488,25 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
                 fontWeight: FontWeight.w400,
               ),
             ),
-            AppText(
-              value,
-              textType: AppTextType.s16w4,
-              color: const Color(0xFF1E40AF),
-              fontWeight: FontWeight.w500,
+            Expanded(
+              flex: 5,
+              child: AppText(
+                value,
+                textType: AppTextType.s16w4,
+                fontSize: _getOptionValueFontSize(value),
+                color: const Color(0xFF1E40AF),
+                fontWeight: FontWeight.w500,
+                maxLines: 3,
+                textAlign: TextAlign.left,
+              ),
             ),
             SizedBox(width: 8.w),
-            Icon(
-              Icons.chevron_right,
-              size: 20.sp,
-              color: const Color(0xFF9CA3AF),
+            Expanded(
+              child: Icon(
+                Icons.chevron_right,
+                size: 20.sp,
+                color: const Color(0xFF9CA3AF),
+              ),
             ),
           ],
         ),
@@ -708,19 +726,40 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
     if (_repeatOption == 'Does not repeat') {
       return 'None';
     } else if (_repeatOption == 'Custom') {
-      if (_customFrequency == 'Daily') {
-        return 'Every $_customInterval ${_customIntervalUnit}';
-      } else {
-        final selectedDaysCount = _selectedDays.where((d) => d).length;
-        if (selectedDaysCount == 0) {
-          return 'Custom';
-        } else if (selectedDaysCount == 1) {
-          final dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-          final dayIndex = _selectedDays.indexWhere((d) => d);
-          return 'Every week on ${dayNames[dayIndex]}';
-        } else {
-          return 'Custom';
+      String buildRangeSuffixShort() {
+        if (_customRange == 'Until date' && _customUntilDate != null) {
+          final untilText = DateFormat('MMM d').format(_customUntilDate!);
+          return ' until $untilText';
+        } else if (_customRange == 'For') {
+          return ' · $_customForTimes times';
         }
+        // Forever: không thêm gì
+        return '';
+      }
+
+      if (_customFrequency == 'Daily') {
+        final base = 'Every $_customInterval ${_customIntervalUnit}';
+        return '$base${buildRangeSuffixShort()}';
+      } else {
+        // Weekly custom: hiển thị đầy đủ danh sách thứ nếu có
+        final dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        final selectedDayNames = <String>[];
+        for (int i = 0; i < _selectedDays.length; i++) {
+          if (_selectedDays[i]) {
+            selectedDayNames.add(dayNames[i]);
+          }
+        }
+
+        String base;
+        if (selectedDayNames.isEmpty) {
+          // Không chọn thứ nào → chỉ hiển thị khoảng cách tuần
+          base = 'Every $_customInterval week(s)';
+        } else if (selectedDayNames.length == 1) {
+          base = 'Every week on ${selectedDayNames.first}';
+        } else {
+          base = 'Every $_customInterval week(s) on ${selectedDayNames.join(', ')}';
+        }
+        return '$base${buildRangeSuffixShort()}';
       }
     }
     return _repeatOption;
@@ -734,10 +773,26 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
     } else if (_repeatOption == 'Weekdays (Mon-Fri)') {
       return 'Repeats every weekday, starting ${DateFormat('EEE, MMM d').format(_selectedDate)}.';
     } else if (_repeatOption == 'Every week on Tuesday') {
-      return 'Repeats every week on Tuesday, starting ${DateFormat('EEE, MMM d').format(_selectedDate)}.';
+      final weekday = DateFormat('EEEE').format(_selectedDate);
+      return 'Repeats every week on $weekday, starting ${DateFormat('EEE, MMM d').format(_selectedDate)}.';
     } else if (_repeatOption == 'Custom') {
+      final startText = DateFormat('EEE, MMM d').format(_selectedDate);
+
+      String buildRangeSuffix() {
+        if (_customRange == 'Until date' && _customUntilDate != null) {
+          final untilText = DateFormat('EEE, MMM d').format(_customUntilDate!);
+          return ' until $untilText.';
+        } else if (_customRange == 'For') {
+          return ' for $_customForTimes times, starting $startText.';
+        } else {
+          // Forever (default): chỉ cần "starting ..."
+          return ', starting $startText.';
+        }
+      }
+
       if (_customFrequency == 'Daily') {
-        return 'Repeats every $_customInterval ${_customIntervalUnit}, starting ${DateFormat('EEE, MMM d').format(_selectedDate)}.';
+        final base = 'Repeats every $_customInterval ${_customIntervalUnit}';
+        return '$base${buildRangeSuffix()}';
       } else {
         final dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
         final selectedDayNames = <String>[];
@@ -746,11 +801,14 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
             selectedDayNames.add(dayNames[i]);
           }
         }
+
+        String base;
         if (selectedDayNames.isEmpty) {
-          return 'Repeats every $_customInterval week(s), starting ${DateFormat('EEE, MMM d').format(_selectedDate)}.';
+          base = 'Repeats every $_customInterval week(s)';
         } else {
-          return 'Repeats every $_customInterval week(s) on ${selectedDayNames.join(', ')}, starting ${DateFormat('EEE, MMM d').format(_selectedDate)}.';
+          base = 'Repeats every $_customInterval week(s) on ${selectedDayNames.join(', ')}';
         }
+        return '$base${buildRangeSuffix()}';
       }
     }
     return '';
@@ -769,10 +827,9 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
   }
 
   String _getReminderDisplayText() {
-    if (!_reminderEnabled || _selectedReminderOption == 'Off') {
+    if (!_reminderEnabled) {
       return 'Off';
     }
-
     switch (_selectedReminderOption) {
       case '15m':
         return '15 minutes before';
@@ -933,11 +990,11 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
                 },
               ),
               _buildRepeatOption(
-                'Every week on Tuesday',
-                isSelected: _repeatOption == 'Every week on Tuesday',
+                'Every week on ${DateFormat('EEEE').format(_selectedDate)}',
+                isSelected: _repeatOption == 'Every week on ${DateFormat('EEEE').format(_selectedDate)}',
                 onTap: () {
                   setState(() {
-                    _repeatOption = 'Every week on Tuesday';
+                    _repeatOption = 'Every week on ${DateFormat('EEEE').format(_selectedDate)}';
                   });
                   Navigator.pop(context);
                 },
@@ -1072,6 +1129,22 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
               const Divider(height: 1, color: Color(0xFFE5E7EB)),
               ...options.map((opt) {
                 final isSelected = _selectedPriority == opt;
+
+                // Màu theo từng mức priority
+                Color priorityColor;
+                switch (opt) {
+                  case 'HIGH':
+                    priorityColor = const Color(0xFFDC2626); // đỏ
+                    break;
+                  case 'LOW':
+                    priorityColor = const Color(0xFF16A34A); // xanh lá
+                    break;
+                  case 'MEDIUM':
+                  default:
+                    priorityColor = const Color(0xFFF59E0B); // cam
+                    break;
+                }
+
                 return ListTile(
                   onTap: () {
                     setState(() {
@@ -1079,9 +1152,18 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
                     });
                     Navigator.pop(context);
                   },
-                  leading: Icon(
-                    Icons.flag,
-                    color: isSelected ? const Color(0xFF2563EB) : const Color(0xFF6B7280),
+                  leading: Container(
+                    width: 32.w,
+                    height: 32.w,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: priorityColor.withOpacity(isSelected ? 0.15 : 0.08),
+                    ),
+                    child: Icon(
+                      Icons.flag,
+                      color: priorityColor,
+                      size: 18.sp,
+                    ),
                   ),
                   title: AppText(
                     opt[0] + opt.substring(1).toLowerCase(),
@@ -1089,7 +1171,13 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
                     color: const Color(0xFF1F2937),
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                   ),
-                  trailing: isSelected ? Icon(Icons.check, color: const Color(0xFF2563EB), size: 20.sp) : null,
+                  trailing: isSelected
+                      ? Icon(
+                          Icons.check,
+                          color: priorityColor,
+                          size: 20.sp,
+                        )
+                      : null,
                 );
               }).toList(),
               SizedBox(height: 8.h),
@@ -1104,7 +1192,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
 
   Future<void> _selectReminder() async {
     _unfocus();
-    const options = ['Off', '15m', '30m', '1h', '1.5h', '2h', 'Custom'];
+    const options = ['15m', '30m', '1h', '1.5h', '2h', 'Custom'];
 
     String tempSelected = _selectedReminderOption;
     int? tempCustomMinutes = _customReminderMinutes ?? 15;
@@ -1176,19 +1264,17 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
                               });
                             },
                             title: AppText(
-                              opt == 'Off'
-                                  ? 'Off'
-                                  : opt == '15m'
-                                      ? '15 minutes before'
-                                      : opt == '30m'
-                                          ? '30 minutes before'
-                                          : opt == '1h'
-                                              ? '1 hour before'
-                                              : opt == '1.5h'
-                                                  ? '1.5 hours before'
-                                                  : opt == '2h'
-                                                      ? '2 hours before'
-                                                      : 'Custom',
+                              opt == '15m'
+                                  ? '15 minutes before'
+                                  : opt == '30m'
+                                      ? '30 minutes before'
+                                      : opt == '1h'
+                                          ? '1 hour before'
+                                          : opt == '1.5h'
+                                              ? '1.5 hours before'
+                                              : opt == '2h'
+                                                  ? '2 hours before'
+                                                  : 'Custom',
                               textType: AppTextType.s16w4,
                               color: const Color(0xFF1F2937),
                               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
@@ -1266,7 +1352,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
                                     setState(() {
                                       _selectedReminderOption = tempSelected;
                                       _customReminderMinutes = tempCustomMinutes;
-                                      _reminderEnabled = tempSelected != 'Off';
+                                      _reminderEnabled = true;
                                     });
                                     Navigator.pop(context);
                                   },
@@ -1670,7 +1756,9 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
                             trailing: Row(
                               children: [
                                 AppText(
-                                  _customUntilDate != null ? DateFormat('MMM d, yyyy').format(_customUntilDate!) : 'Dec 31, 2024',
+                                  _customUntilDate != null
+                                      ? DateFormat('MMM d, yyyy').format(_customUntilDate!)
+                                      : DateFormat('MMM d, yyyy').format(DateTime.now()),
                                   textType: AppTextType.s14w4,
                                   color: const Color(0xFF6B7280),
                                   fontWeight: FontWeight.w400,
@@ -1893,7 +1981,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
   }
 
   int? _getReminderOffsetMinutes() {
-    if (!_reminderEnabled || _selectedReminderOption == 'Off') return null;
+    if (!_reminderEnabled) return null;
 
     switch (_selectedReminderOption) {
       case '15m':
@@ -1918,25 +2006,19 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
     // Format date as yyyy-MM-dd
     final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
 
-    // Build startAt: thời gian dạng HH:mm:ss (API dùng kèm field date)
-    DateTime startDateTime;
+    // Build startAt: thời gian dạng HH:mm:ss (API dùng kèm field date).
+    // Nếu không chọn Time thì để null (task all-day, không có giờ cụ thể).
+    String? startAtStr;
     if (_selectedTime != null) {
-      startDateTime = DateTime(
+      final startDateTime = DateTime(
         _selectedDate.year,
         _selectedDate.month,
         _selectedDate.day,
         _selectedTime!.hour,
         _selectedTime!.minute,
       );
-    } else {
-      // If no time selected, use start of day
-      startDateTime = DateTime(
-        _selectedDate.year,
-        _selectedDate.month,
-        _selectedDate.day,
-      );
+      startAtStr = DateFormat('HH:mm:ss').format(startDateTime);
     }
-    final startAtStr = DateFormat('HH:mm:ss').format(startDateTime);
 
     // Build repeat object
     Map<String, dynamic> repeatObj = {};
@@ -1998,13 +2080,17 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
       'title': _titleController.text.trim(),
       'description': _descriptionController.text.trim(),
       'date': dateStr,
-      'startAt': startAtStr,
       'durationMinutes': _parseDurationToMinutes(_selectedDuration),
       'repeat': repeatObj,
       'status': 'PENDING',
       'source': 'MANUAL',
       'priority': _selectedPriority,
+      // Nếu không có time → allDay = true để backend và UI hiểu là không gắn giờ cụ thể.
+      'allDay': _selectedTime == null,
     };
+
+    // startAt có thể null nếu không chọn Time.
+    body['startAt'] = startAtStr;
 
     final reminderOffset = _getReminderOffsetMinutes();
     if (reminderOffset != null) {
@@ -2032,7 +2118,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
 
       if (isEditMode) {
         // Call updateTask API for update
-        await Api.instance.restClient.updateTask(widget.taskToEdit!.id, body);
+        await Api.instance.restClient.updateTask(widget.taskToEdit!.id ?? '', body);
       } else {
         await Api.instance.restClient.createTask(body);
       }
@@ -2105,7 +2191,7 @@ class _DatePickerBottomSheetState extends State<_DatePickerBottomSheet> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Chọn ngày',
+                'Select date',
                 style: TextStyle(
                   fontSize: 18.sp,
                   fontWeight: FontWeight.w600,
@@ -2115,7 +2201,7 @@ class _DatePickerBottomSheetState extends State<_DatePickerBottomSheet> {
               TextButton(
                 onPressed: () => Navigator.pop(context, _pickedDate),
                 child: Text(
-                  'Xong',
+                  'Done',
                   style: TextStyle(
                     fontSize: 16.sp,
                     fontWeight: FontWeight.w600,

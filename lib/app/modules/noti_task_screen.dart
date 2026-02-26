@@ -101,50 +101,50 @@ class _NotiTaskScreenState extends State<NotiTaskScreen> {
                       SizedBox(height: 24.h),
                       Text(
                         widget.taskTitle,
-                      style: TextStyle(
-                        fontSize: 24.sp,
-                        fontWeight: FontWeight.bold,
-                        color: _textDark,
+                        style: TextStyle(
+                          fontSize: 24.sp,
+                          fontWeight: FontWeight.bold,
+                          color: _textDark,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
-                      textAlign: TextAlign.center,
-                    ),
-                    SizedBox(height: 8.h),
-                    Text(
-                      widget.timeRange,
-                      style: TextStyle(
-                        fontSize: 16.sp,
-                        color: _textDark,
-                        fontWeight: FontWeight.w400,
+                      SizedBox(height: 8.h),
+                      Text(
+                        widget.timeRange,
+                        style: TextStyle(
+                          fontSize: 16.sp,
+                          color: _textDark,
+                          fontWeight: FontWeight.w400,
+                        ),
                       ),
-                    ),
-                    SizedBox(height: 8.h),
-                    Text(
-                      _startsInText(widget.startsInMinutes),
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        color: _primaryBlue,
-                        fontWeight: FontWeight.w500,
+                      SizedBox(height: 8.h),
+                      Text(
+                        _startsInText(widget.startsInMinutes),
+                        style: TextStyle(
+                          fontSize: 14.sp,
+                          color: _primaryBlue,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
-                    ),
-                    SizedBox(height: 200.h),
-                    // Spacer(),
-                    _buildMarkAsDoneButton(context),
-                    SizedBox(height: 24.h),
-                    Text(
-                      'Snooze for:',
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        color: _textGrey,
+                      SizedBox(height: 200.h),
+                      // Spacer(),
+                      _buildMarkAsDoneButton(context),
+                      SizedBox(height: 24.h),
+                      Text(
+                        'Snooze for:',
+                        style: TextStyle(
+                          fontSize: 14.sp,
+                          color: _textGrey,
+                        ),
                       ),
-                    ),
-                    SizedBox(height: 12.h),
-                    _buildSnoozeButtons(context),
-                    // SizedBox(height: 32.h),
-                    // _buildEditTaskLink(context),
-                  ],
+                      SizedBox(height: 12.h),
+                      _buildSnoozeButtons(context),
+                      // SizedBox(height: 32.h),
+                      // _buildEditTaskLink(context),
+                    ],
+                  ),
                 ),
               ),
-            ),
             ],
           ),
         ),
@@ -154,11 +154,14 @@ class _NotiTaskScreenState extends State<NotiTaskScreen> {
 
   Widget _buildHeader(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(top: 12.h, bottom: 8.h,left: 16.w),
-      child: Row(
-        children: [
-          Expanded(
-            child: Center(
+      padding: EdgeInsets.only(top: 12.h, bottom: 8.h, left: 16.w, right: 16.w),
+      child: SizedBox(
+        height: 32.h,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Padding(
+              padding: EdgeInsets.only(left: 20.w),
               child: Text(
                 'Task Reminder',
                 style: TextStyle(
@@ -168,9 +171,21 @@ class _NotiTaskScreenState extends State<NotiTaskScreen> {
                 ),
               ),
             ),
-          ),
-          SizedBox(width: 24.w),
-        ],
+            Align(
+              alignment: Alignment.centerRight,
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                icon: Icon(
+                  Icons.close,
+                  size: 22.sp,
+                  color: _textDark,
+                ),
+                onPressed: () => _goToHome(context),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -210,9 +225,9 @@ class _NotiTaskScreenState extends State<NotiTaskScreen> {
 
   Widget _buildSnoozeButtons(BuildContext context) {
     final options = [
+      ('2 min', 2),
+      ('3 min', 3),
       ('5 min', 5),
-      ('10 min', 10),
-      ('30 min', 30),
     ];
     return Row(
       children: options.map((e) {
@@ -227,7 +242,6 @@ class _NotiTaskScreenState extends State<NotiTaskScreen> {
                 side: BorderSide(color: _primaryBlue.withOpacity(0.5)),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20.r),
-
                 ),
                 padding: EdgeInsets.symmetric(vertical: 12.h),
               ),
@@ -246,31 +260,6 @@ class _NotiTaskScreenState extends State<NotiTaskScreen> {
     );
   }
 
-  Widget _buildEditTaskLink(BuildContext context) {
-    return GestureDetector(
-      onTap: () => _onEditTask(context),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.edit_outlined,
-            size: 20.sp,
-            color: _textDark,
-          ),
-          SizedBox(width: 8.w),
-          Text(
-            'Edit Task Details',
-            style: TextStyle(
-              fontSize: 16.sp,
-              fontWeight: FontWeight.w500,
-              color: _textDark,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _goToHome(BuildContext context) {
     if (!context.mounted) return;
     _stopAlarm();
@@ -283,7 +272,7 @@ class _NotiTaskScreenState extends State<NotiTaskScreen> {
   Future<void> _onMarkAsDone(BuildContext context) async {
     if (widget.task == null) return;
     try {
-      await Api.instance.restClient.updateTask(widget.task!.id, {'status': 'DONE'});
+      await Api.instance.restClient.updateTask(widget.task?.id ?? '', {'status': 'DONE'});
     } catch (e) {
       debugPrint('Error updating task status: $e');
     }
@@ -292,26 +281,17 @@ class _NotiTaskScreenState extends State<NotiTaskScreen> {
 
   Future<void> _onSnooze(BuildContext context, int minutes) async {
     if (widget.task == null) return;
-    final currentOffset = widget.task!.reminderOffsetMinutes ?? 0;
-    final newOffset = currentOffset + minutes;
     try {
-      await Api.instance.restClient.updateTask(
-        widget.task!.id,
-        {'reminderOffsetMinutes': newOffset},
+      await Api.instance.restClient.snoozeTask(
+        widget.task?.id ?? '',
+        {
+          'durationMinutes': minutes,
+        },
       );
     } catch (e) {
       debugPrint('Error updating task snooze: $e');
     }
     _goToHome(context);
-  }
-
-  void _onEditTask(BuildContext context) {
-    Navigator.of(context).pop();
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const NewTaskScreen(),
-      ),
-    );
   }
 }
 

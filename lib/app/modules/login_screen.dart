@@ -243,12 +243,14 @@ class _LoginScreenState extends State<LoginScreen> {
           SizedBox(height: 12.h),
 
           // Apple button
-          _buildSocialButton(
-            icon: Icons.apple,
-            text: 'Continue with Apple',
-            backgroundColor: _isSignIn ? _buttonBlue : _buttonBlueSignUp,
-            onPressed: _onAppleSignIn,
-          ),
+          if (Platform.isIOS) ...[
+            _buildSocialButton(
+              icon: Icons.apple,
+              text: 'Continue with Apple',
+              backgroundColor: _isSignIn ? _buttonBlue : _buttonBlueSignUp,
+              onPressed: _onAppleSignIn,
+            ),
+          ],
         ],
       ),
     );

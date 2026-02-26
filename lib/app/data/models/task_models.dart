@@ -68,23 +68,23 @@ class DateCount {
 @JsonSerializable()
 class Task {
   final String? cloudTaskId;
-  final String startAt;
-  final String status;
-  final String uid;
+  final String? startAt;
+  final String? status;
+  final String? uid;
   final String? remindAt;
   final String? completedAt;
-  final String createdAt;
-  final String title;
+  final String? createdAt;
+  final String? title;
   final String? description;
   final int? reminderOffsetMinutes;
-  final int durationMinutes;
-  final String source;
-  final bool allDay;
-  final bool notificationSent; 
-  final bool autoScheduled;
-  final String id;
-  final String updatedAt;
-  final String date;
+  final int? durationMinutes;
+  final String? source;
+  final bool? allDay;
+  final bool? notificationSent; 
+  final bool? autoScheduled;
+  final String? id;
+  final String? updatedAt;
+  final String? date;
   final Repeat? repeat;
   final bool? isRecurringInstance;
   final String? baseDate;
@@ -92,23 +92,23 @@ class Task {
 
   Task({
     this.cloudTaskId,
-    required this.startAt,
-    required this.status,
-    required this.uid,
+    this.startAt,
+    this.status,
+    this.uid,
     this.remindAt,
     this.completedAt,
-    required this.createdAt,
-    required this.title,
+    this.createdAt,
+    this.title,
     this.description,
     this.reminderOffsetMinutes,
-    required this.durationMinutes,
-    required this.source,
-    required this.allDay,
-    required this.notificationSent,
-    required this.autoScheduled,
-    required this.id,
-    required this.updatedAt,
-    required this.date,
+    this.durationMinutes,
+    this.source,
+    this.allDay,
+    this.notificationSent,
+    this.autoScheduled,
+    this.id,
+    this.updatedAt,
+    this.date,
     this.repeat,
     this.isRecurringInstance,
     this.baseDate,

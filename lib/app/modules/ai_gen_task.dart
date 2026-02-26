@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
 
+import '../data/models/task_models.dart';
 import '../repository/repository.dart';
 import 'home_page.dart';
-import 'home_today.dart';
 
 /// Screen hiển thị danh sách task gợi ý từ AI và cho phép chọn để auto-schedule.
 class AiGenTaskScreen extends StatefulWidget {
-  final List<Map<String, dynamic>> tasks;
+  final List<Task> tasks;
 
   const AiGenTaskScreen({
     super.key,
@@ -157,15 +157,17 @@ class _AiGenTaskScreenState extends State<AiGenTaskScreen> {
   }
 
   Widget _buildTaskCard(
-    Map<String, dynamic> task,
+    Task task,
     bool selected,
     VoidCallback onToggle,
   ) {
-    final title = (task['title'] ?? '') as String;
-    final description = task['description'] as String?;
+    final title = task.title ?? '';
+    final description = task.description;
     final dateTimeText = _formatDateTime(task);
-    final durationText = _formatDuration(task['durationMinutes']);
-    final reminderText = _formatReminder(task['reminderOffsetMinutes']);
+    final durationText = _formatDuration(task.durationMinutes);
+    final reminderText = _formatReminder(task.reminderOffsetMinutes);
+    final repeatText = _formatRepeat(task);
+    // final sourceText = _formatSource(task.source);
 
     return GestureDetector(
       onTap: onToggle,
@@ -242,11 +244,21 @@ class _AiGenTaskScreenState extends State<AiGenTaskScreen> {
                 icon: Icons.notifications_none,
                 text: reminderText,
               ),
-            if (description != null && description.isNotEmpty)
+            if (repeatText != null)
               _buildDetailRow(
-                icon: Icons.description_outlined,
-                text: description,
+                icon: Icons.repeat,
+                text: repeatText,
               ),
+            // if (sourceText != null)
+            //   _buildDetailRow(
+            //     icon: Icons.tips_and_updates_outlined,
+            //     text: sourceText,
+            //   ),
+            // if (description != null && description.isNotEmpty)
+            //   _buildDetailRow(
+            //     icon: Icons.description_outlined,
+            //     text: description,
+            //   ),
           ],
         ),
       ),
@@ -282,22 +294,25 @@ class _AiGenTaskScreenState extends State<AiGenTaskScreen> {
     );
   }
 
-  String? _formatDateTime(Map<String, dynamic> task) {
-    final date = task['date'] as String?;
-    final time = task['startAt'] as String?;
+  String? _formatDateTime(Task task) {
+    final date = task.date;
+    final time = task.startAt;
+    final isAllDay = task.allDay == true;
     if ((date == null || date.isEmpty) && (time == null || time.isEmpty)) {
       return null;
     }
     if (date != null && time != null && time.isNotEmpty) {
       final hhmm = time.length >= 5 ? time.substring(0, 5) : time;
-      return '$date, $hhmm';
+      return isAllDay ? '$date (all day, $hhmm)' : '$date, $hhmm';
     }
-    return date ?? time;
+    if (date != null) {
+      return isAllDay ? '$date (all day)' : date;
+    }
+    return time;
   }
 
-  String? _formatDuration(dynamic value) {
-    if (value == null) return null;
-    final minutes = value is int ? value : int.tryParse(value.toString()) ?? 0;
+  String? _formatDuration(int? minutes) {
+    if (minutes == null) return null;
     if (minutes <= 0) return null;
     if (minutes % 60 == 0) {
       final h = minutes ~/ 60;
@@ -311,11 +326,66 @@ class _AiGenTaskScreenState extends State<AiGenTaskScreen> {
     return '$minutes minutes';
   }
 
-  String? _formatReminder(dynamic value) {
-    if (value == null) return null;
-    final minutes = value is int ? value : int.tryParse(value.toString()) ?? 0;
+  String? _formatReminder(int? minutes) {
+    if (minutes == null) return null;
     if (minutes <= 0) return null;
     return '$minutes minutes before';
+  }
+
+  String? _formatRepeat(Task task) {
+    final repeat = task.repeat;
+    if (repeat == null || repeat.type == null || repeat.type == 'NONE') {
+      return null;
+    }
+
+    if (repeat.type == 'PRESET') {
+      switch (repeat.preset) {
+        case 'EVERY_DAY':
+          return 'Repeats every day';
+        case 'WEEKDAYS':
+          return 'Repeats on weekdays (Mon–Fri)';
+        default:
+          return 'Repeats (${repeat.preset})';
+      }
+    }
+
+    final custom = repeat.custom;
+    if (repeat.type == 'CUSTOM' && custom != null) {
+      final freq = custom.frequency; // DAILY | WEEKLY
+      final interval = custom.interval;
+      if (freq == 'DAILY') {
+        return interval == 1 ? 'Repeats every day' : 'Repeats every $interval days';
+      }
+      if (freq == 'WEEKLY') {
+        final days = custom.weekdays;
+        String daysText;
+        if (days == null || days.isEmpty) {
+          daysText = '';
+        } else {
+          daysText = days.join(', ');
+        }
+        if (interval == 1) {
+          return daysText.isEmpty ? 'Repeats every week' : 'Repeats every week on $daysText';
+        }
+        return daysText.isEmpty
+            ? 'Repeats every $interval weeks'
+            : 'Repeats every $interval weeks on $daysText';
+      }
+    }
+
+    return 'Repeats';
+  }
+
+  String? _formatSource(String? source) {
+    if (source == null || source.isEmpty) return null;
+    final upper = source.toUpperCase();
+    if (upper == 'AI_TEXT') {
+      return 'Generated from AI text';
+    }
+    if (upper == 'VOICE') {
+      return 'Generated from voice input';
+    }
+    return 'Source: $source';
   }
 
   List<Map<String, dynamic>> _buildSelectedTasksBody() {
@@ -323,8 +393,8 @@ class _AiGenTaskScreenState extends State<AiGenTaskScreen> {
     for (int i = 0; i < widget.tasks.length; i++) {
       if (!_selected[i]) continue;
       final t = widget.tasks[i];
-      final date = t['date'] as String? ?? '';
-      final startAtRaw = t['startAt'] as String?;
+      final date = t.date ?? '';
+      final startAtRaw = t.startAt;
       // Chuẩn hóa startAt về dạng "09:00:00"
       String? startAtStr;
       if (startAtRaw != null && startAtRaw.isNotEmpty) {
@@ -336,18 +406,21 @@ class _AiGenTaskScreenState extends State<AiGenTaskScreen> {
           startAtStr = startAtRaw;
         }
       }
-      final priority = t['priority'] as String? ?? 'MEDIUM';
+      final priority = t.priority ?? 'MEDIUM';
       final taskMap = <String, dynamic>{
-        'title': t['title'] ?? '',
+        'title': t.title ?? '',
         'date': date,
         'priority': priority,
       };
       if (startAtStr != null) taskMap['startAt'] = startAtStr;
-      if (t['description'] != null && (t['description'] as String).isNotEmpty) {
-        taskMap['description'] = t['description'];
+      if (t.description != null && t.description!.isNotEmpty) {
+        taskMap['description'] = t.description;
       }
-      if (t['durationMinutes'] != null) taskMap['durationMinutes'] = t['durationMinutes'];
-      if (t['reminderOffsetMinutes'] != null) taskMap['reminderOffsetMinutes'] = t['reminderOffsetMinutes'];
+      if (t.durationMinutes != null) taskMap['durationMinutes'] = t.durationMinutes;
+      if (t.reminderOffsetMinutes != null) taskMap['reminderOffsetMinutes'] = t.reminderOffsetMinutes;
+      if (t.allDay != null) taskMap['allDay'] = t.allDay;
+      if (t.source != null) taskMap['source'] = t.source;
+      if (t.repeat != null) taskMap['repeat'] = t.repeat!.toJson();
       list.add(taskMap);
     }
     return list;
@@ -366,7 +439,6 @@ class _AiGenTaskScreenState extends State<AiGenTaskScreen> {
       if (!mounted) return;
       setState(() => _submitting = false);
       EasyLoading.showSuccess('Tasks added successfully!');
-      // Điều hướng về HomePage với tab Today (HomeTodayScreen)
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (context) => const HomePage(initialIndex: 0)),
         (route) => false,

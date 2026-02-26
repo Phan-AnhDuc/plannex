@@ -69,7 +69,8 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         true, // includeDone
         true, // includeCancelled
       );
-      final list = _tasksFromRangeResponse(res, date);
+      // Month view: include cả task không có startAt (gán mặc định 00:00).
+      final list = _tasksFromRangeResponse(res, date, includeNoTime: true);
       if (mounted)
         setState(() {
           _monthDayTasks = list;
@@ -148,19 +149,53 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     }
   }
 
-  /// Map Task (API) -> ScheduleTask. Bỏ qua allDay. usePriorityColor: màu theo priority (Week view).
-  List<ScheduleTask> _tasksFromRangeResponse(TasksRangeResponse res, DateTime forDate, {bool usePriorityColor = false}) {
+  /// Map Task (API) -> ScheduleTask.
+  /// - Bỏ qua allDay.
+  /// - usePriorityColor: màu theo priority (Week view).
+  /// - includeNoTime: nếu true, task không có startAt vẫn được hiển thị (gán mặc định 00:00).
+  List<ScheduleTask> _tasksFromRangeResponse(
+    TasksRangeResponse res,
+    DateTime forDate, {
+    bool usePriorityColor = false,
+    bool includeNoTime = false,
+  }) {
     final list = <ScheduleTask>[];
     for (final t in res.tasks) {
-      if (t.allDay) continue;
+      if (t.allDay == true) continue;
+
       DateTime? start;
-      try {
-        if (t.startAt.isNotEmpty) {
-          final timeOnly = RegExp(r'^\d{1,2}:\d{2}(:\d{2})?$').hasMatch(t.startAt.trim());
+      final rawStartAt = t.startAt;
+
+      if (rawStartAt == null || rawStartAt.trim().isEmpty) {
+        // Task không có giờ cụ thể.
+        if (!includeNoTime) {
+          // Day view timeline: bỏ qua, sẽ hiển thị ở Unscheduled list.
+          continue;
+        }
+        // Month view: gán giờ mặc định 00:00 để vẫn hiển thị trong list.
+        try {
+          final dateStr = (t.date ?? '').isNotEmpty ? t.date! : DateFormat('yyyy-MM-dd').format(forDate);
+          final dateParts = dateStr.split('-');
+          if (dateParts.length == 3) {
+            start = DateTime(
+              int.parse(dateParts[0]),
+              int.parse(dateParts[1]),
+              int.parse(dateParts[2]),
+              0,
+              0,
+              0,
+            );
+          }
+        } catch (_) {}
+      } else {
+        // Có startAt: parse bình thường.
+        try {
+          final trimmed = rawStartAt.trim();
+          final timeOnly = RegExp(r'^\d{1,2}:\d{2}(:\d{2})?$').hasMatch(trimmed);
           if (timeOnly) {
-            final timeParts = t.startAt.trim().split(':');
+            final timeParts = trimmed.split(':');
             if (timeParts.length >= 2) {
-              final dateStr = t.date.isNotEmpty ? t.date : DateFormat('yyyy-MM-dd').format(forDate);
+              final dateStr = (t.date ?? '').isNotEmpty ? t.date! : DateFormat('yyyy-MM-dd').format(forDate);
               final dateParts = dateStr.split('-');
               if (dateParts.length == 3) {
                 start = DateTime(
@@ -174,20 +209,20 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
               }
             }
           } else {
-            String normalized = t.startAt.trim();
+            String normalized = trimmed;
             if (normalized.contains(' ') && !normalized.contains('T')) {
               normalized = normalized.replaceFirst(' ', 'T');
             }
             start = DateTime.parse(normalized);
           }
-        }
-      } catch (_) {}
+        } catch (_) {}
+      }
       if (start == null) continue;
-      final end = start.add(Duration(minutes: t.durationMinutes));
+      final end = start.add(Duration(minutes: t.durationMinutes ?? 0));
       final isDone = t.status == 'DONE' || t.status == 'COMPLETED';
       list.add(ScheduleTask(
-        id: t.id,
-        title: t.title,
+        id: t.id ?? '',
+        title: t.title ?? '',
         startTime: start,
         endTime: end,
         color: usePriorityColor ? _colorFromPriority(t.priority) : const Color(0xFFF3F4F6),
@@ -507,7 +542,8 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             separatorBuilder: (_, __) => SizedBox(height: 12.h),
             itemBuilder: (context, index) {
               final task = _unscheduledTasksFromApi[index];
-              final durationStr = task.durationMinutes >= 60 ? '${task.durationMinutes ~/ 60}h' : '${task.durationMinutes}m';
+              final dm = task.durationMinutes ?? 0;
+              final durationStr = dm >= 60 ? '${dm ~/ 60}h' : '${dm}m';
               final priorityLabel = _formatPriorityLabel(task.priority);
               return Container(
                 padding: EdgeInsets.all(16.w),
@@ -522,7 +558,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           AppText(
-                            task.title,
+                            task.title ?? '',
                             textType: AppTextType.s16w4,
                             fontWeight: FontWeight.w600,
                             color: const Color(0xFF1F2937),
@@ -1384,9 +1420,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           maxChildSize: 0.8,
           expand: false,
           builder: (context, scrollController) {
-            final dateText = _scheduleBuildDateLabel(task.date);
-            final timeRange = _scheduleFormatTime(task.startAt, task.durationMinutes, date: task.date);
-            final durationText = _scheduleBuildDurationLabel(task.durationMinutes);
+            final dateText = _scheduleBuildDateLabel(task.date ?? '');
+            final timeRange = _scheduleFormatTime(task.startAt ?? '', task.durationMinutes ?? 0, date: task.date);
+            final durationText = _scheduleBuildDurationLabel(task.durationMinutes ?? 0);
             final repeatText = _scheduleBuildRepeatLabel(task);
             final reminderText = _scheduleBuildReminderLabel(task);
 
@@ -1425,7 +1461,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                       children: [
                         Expanded(
                           child: Text(
-                            task.title,
+                            task.title ?? '',
                             style: TextStyle(
                               fontSize: 20.sp,
                               fontWeight: FontWeight.w500,
@@ -1731,7 +1767,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   Future<void> _toggleScheduleTaskDone(Task task) async {
     final newStatus = task.status == 'DONE' || task.status == 'COMPLETED' ? 'PENDING' : 'DONE';
     try {
-      await Api.instance.restClient.updateTask(task.id, {'status': newStatus});
+      await Api.instance.restClient.updateTask(task.id ?? '', {'status': newStatus});
       if (!mounted) return;
       if (_viewMode == 0) {
         _fetchTasksForDay(_selectedDate);

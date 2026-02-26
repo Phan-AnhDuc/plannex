@@ -8,6 +8,7 @@ import 'package:flutter_easyloading/flutter_easyloading.dart';
 import '../components/app_text.dart';
 import '../repository/repository.dart';
 import '../data/models/task_models.dart';
+import '../data/app_shared_pref.dart';
 import 'home_page.dart';
 import 'new_task.dart';
 import 'ai_plan.dart';
@@ -30,6 +31,7 @@ class _HomeTodayScreenState extends HomeTodayScreenState {
   // Task data from API
   List<TaskGroup> _taskGroups = [];
   bool _isLoading = false;
+  String? _avatarUrl;
 
   int get _completedTasks => _taskGroups.expand((g) => g.tasks).where((t) => t.isCompleted).length;
 
@@ -39,6 +41,23 @@ class _HomeTodayScreenState extends HomeTodayScreenState {
   void initState() {
     super.initState();
     _getTasksRange();
+    _loadUserAvatar();
+  }
+
+  void _loadUserAvatar() {
+    try {
+      final profile = AppSharedPref.getUserProfile();
+      if (profile is Map && profile.isNotEmpty) {
+        final dynamic avatar = profile['avatar'] ?? profile['avatarUrl'] ?? profile['photoUrl'] ?? profile['picture'] ?? profile['imageUrl'];
+        if (avatar is String && avatar.isNotEmpty) {
+          setState(() {
+            _avatarUrl = avatar;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading user avatar: $e');
+    }
   }
 
   String _formatDate(DateTime date) {
@@ -112,13 +131,14 @@ class _HomeTodayScreenState extends HomeTodayScreenState {
     for (final task in tasks) {
       DateTime? startDateTime;
       try {
-        if (!task.allDay && task.startAt.isNotEmpty) {
+        final rawStartAt = task.startAt;
+        if (task.allDay != true && rawStartAt != null && rawStartAt.isNotEmpty) {
           // Check if startAt is just time format (HH:mm:ss) or full datetime
-          if (task.startAt.length <= 8 && task.startAt.contains(':')) {
+          if (rawStartAt.length <= 8 && rawStartAt.contains(':')) {
             // It's just time, combine with date
-            final timeParts = task.startAt.split(':');
-            if (timeParts.length >= 2 && task.date.isNotEmpty) {
-              final dateParts = task.date.split('-');
+            final timeParts = rawStartAt.split(':');
+            if (timeParts.length >= 2 && (task.date ?? '').isNotEmpty) {
+              final dateParts = task.date!.split('-');
               if (dateParts.length == 3) {
                 startDateTime = DateTime(
                   int.parse(dateParts[0]),
@@ -132,7 +152,7 @@ class _HomeTodayScreenState extends HomeTodayScreenState {
             }
           } else {
             // It's full datetime
-            String normalized = task.startAt.trim();
+            String normalized = rawStartAt.trim();
             if (normalized.contains(' ') && !normalized.contains('T')) {
               normalized = normalized.replaceFirst(' ', 'T');
             }
@@ -148,17 +168,17 @@ class _HomeTodayScreenState extends HomeTodayScreenState {
       final isCompleted = task.status == 'DONE' || task.status == 'COMPLETED';
 
       final List<String>? tags = [];
-      if (task.autoScheduled) {
+      if (task.autoScheduled == true) {
         tags?.add('AI');
         tags?.add('Auto-scheduled');
       }
 
       final taskItem = TaskItem(
-        id: task.id,
-        title: task.title,
-        startAt: task.startAt,
-        date: task.date,
-        durationMinutes: task.durationMinutes,
+        id: task.id ?? '',
+        title: task.title ?? '',
+        startAt: task.startAt ?? '',
+        date: task.date ?? '',
+        durationMinutes: task.durationMinutes ?? 0,
         isCompleted: isCompleted,
         priority: task.priority,
         tags: tags?.isNotEmpty == true ? tags : null,
@@ -291,16 +311,22 @@ class _HomeTodayScreenState extends HomeTodayScreenState {
               Container(
                 width: 44.w,
                 height: 44.w,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   shape: BoxShape.circle,
-                  color: const Color(0xFFE5E7EB),
-                  image: const DecorationImage(
-                    image: NetworkImage(
-                      'https://api.dicebear.com/7.x/avataaars/png?seed=user',
-                    ),
-                    fit: BoxFit.cover,
-                  ),
+                  color: Color(0xFFE5E7EB),
                 ),
+                clipBehavior: Clip.antiAlias,
+                child: _avatarUrl != null && _avatarUrl!.isNotEmpty
+                    ? Image.network(
+                        _avatarUrl!,
+                        fit: BoxFit.cover,
+                      )
+                    : const Image(
+                        image: NetworkImage(
+                          'https://api.dicebear.com/7.x/avataaars/png?seed=user',
+                        ),
+                        fit: BoxFit.cover,
+                      ),
               ),
             ],
           ),
@@ -362,15 +388,70 @@ class _HomeTodayScreenState extends HomeTodayScreenState {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Group title
+        // Group title with icon
         Padding(
           padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
-          child: AppText(
-            group.title,
-            textType: AppTextType.custom,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: const Color(0xFF1F2937),
+          child: Row(
+            children: [
+              Builder(
+                builder: (context) {
+                  IconData? icon;
+                  Color bgColor = const Color(0xFFE5E7EB);
+                  Color iconColor = const Color(0xFF6B7280);
+
+                  switch (group.title) {
+                    case 'No time':
+                      icon = Icons.wb_sunny_outlined;
+                      bgColor = const Color(0xFFFFF7ED);
+                      iconColor = const Color(0xFFF97316);
+                      break;
+                    case 'Morning':
+                      icon = Icons.wb_sunny_outlined;
+                      bgColor = const Color(0xFFFFF7ED);
+                      iconColor = const Color(0xFFF97316);
+                      break;
+                    case 'Afternoon':
+                      icon = Icons.wb_sunny;
+                      bgColor = const Color(0xFFE0F2FE);
+                      iconColor = const Color(0xFF0284C7);
+                      break;
+                    case 'Evening':
+                      icon = Icons.nightlight_round;
+                      bgColor = const Color(0xFFEEF2FF);
+                      iconColor = const Color(0xFF4F46E5);
+                      break;
+                    default:
+                      icon = null;
+                  }
+
+                  if (icon == null) {
+                    return const SizedBox.shrink();
+                  }
+
+                  return Container(
+                    width: 32.w,
+                    height: 32.w,
+                    decoration: BoxDecoration(
+                      color: bgColor,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      icon,
+                      size: 18.sp,
+                      color: iconColor,
+                    ),
+                  );
+                },
+              ),
+              SizedBox(width: 8.w),
+              AppText(
+                group.title,
+                textType: AppTextType.custom,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF1F2937),
+              ),
+            ],
           ),
         ),
 
@@ -716,9 +797,9 @@ class _HomeTodayScreenState extends HomeTodayScreenState {
           maxChildSize: 0.8,
           expand: false,
           builder: (context, scrollController) {
-            final dateText = _buildDateLabel(task.date);
-            final timeRange = _formatTime(task.startAt, task.durationMinutes, date: task.date);
-            final durationText = _buildDurationLabel(task.durationMinutes);
+            final dateText = _buildDateLabel(task.date ?? '');
+            final timeRange = _formatTime(task.startAt, task.durationMinutes ?? 0, date: task.date);
+            final durationText = _buildDurationLabel(task.durationMinutes ?? 0);
             final repeatText = _buildRepeatLabel(task);
             final reminderText = _buildReminderLabel(task);
 
@@ -760,7 +841,7 @@ class _HomeTodayScreenState extends HomeTodayScreenState {
                       children: [
                         Expanded(
                           child: Text(
-                            task.title,
+                            task.title ?? '',
                             style: TextStyle(
                               fontSize: 20.sp,
                               fontWeight: FontWeight.w500,
@@ -956,7 +1037,81 @@ class _HomeTodayScreenState extends HomeTodayScreenState {
       }
     }
     if (repeat.type == 'CUSTOM') {
-      return 'Custom repeat';
+      final custom = repeat.custom;
+      if (custom == null) return 'Custom repeat';
+
+      String baseText = 'Repeats';
+
+      // Frequency: DAILY or WEEKLY
+      if (custom.frequency == 'DAILY') {
+        if (custom.interval == 1) {
+          baseText = 'Every day';
+        } else {
+          baseText = 'Every ${custom.interval} days';
+        }
+      } else if (custom.frequency == 'WEEKLY') {
+        // Build weekday text if available
+        String weekdaysText = '';
+        final weekdays = custom.weekdays;
+        if (weekdays != null && weekdays.isNotEmpty) {
+          // Map backend codes to short English names
+          final mapped = weekdays.map((w) {
+            switch (w) {
+              case 'MON':
+                return 'Mon';
+              case 'TUE':
+                return 'Tue';
+              case 'WED':
+                return 'Wed';
+              case 'THU':
+                return 'Thu';
+              case 'FRI':
+                return 'Fri';
+              case 'SAT':
+                return 'Sat';
+              case 'SUN':
+                return 'Sun';
+              default:
+                return w;
+            }
+          }).toList();
+          weekdaysText = ' on ${mapped.join(', ')}';
+        }
+
+        if (custom.interval == 1) {
+          baseText = 'Every week$weekdaysText';
+        } else {
+          baseText = 'Every ${custom.interval} weeks$weekdaysText';
+        }
+      }
+
+      // Range information: FOREVER, UNTIL_DATE, COUNT
+      final range = custom.range;
+      String rangeText = '';
+      if (range.mode == 'UNTIL_DATE' && range.untilDate != null && range.untilDate!.isNotEmpty) {
+        try {
+          final parts = range.untilDate!.split('-');
+          if (parts.length == 3) {
+            final dt = DateTime(
+              int.parse(parts[0]),
+              int.parse(parts[1]),
+              int.parse(parts[2]),
+            );
+            final formatted = DateFormat('MMM d, yyyy').format(dt);
+            rangeText = ', until $formatted';
+          }
+        } catch (_) {
+          // Fallback to raw date string
+          rangeText = ', until ${range.untilDate}';
+        }
+      } else if (range.mode == 'COUNT' && range.count != null && range.count! > 0) {
+        rangeText = ', for ${range.count} times';
+      } else if (range.mode == 'FOREVER') {
+        // Optional: explicitly say forever
+        // rangeText = ' (forever)';
+      }
+
+      return '$baseText$rangeText';
     }
     return 'Repeats';
   }
@@ -1166,7 +1321,7 @@ class _HomeTodayScreenState extends HomeTodayScreenState {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const AiPlanScreen(hideMicButton: true),
+        builder: (context) => const AiPlanScreen(hideMicButton: true, isFromHomeToday: true),
       ),
     );
   }
@@ -1175,7 +1330,7 @@ class _HomeTodayScreenState extends HomeTodayScreenState {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const AiPlanScreen(autoStartVoice: true),
+        builder: (context) => const AiPlanScreen(autoStartVoice: true, isFromHomeToday: true),
       ),
     );
   }
